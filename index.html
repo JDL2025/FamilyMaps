@@ -32,7 +32,7 @@ button{cursor:pointer}
 /* ---------- Top bar ---------- */
 .top{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap;z-index:1200;position:relative}
 .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;white-space:nowrap}
-.brand svg{width:22px;height:29px}
+.brand .logo{height:50px;width:auto;display:block;margin:-6px 0}
 .trip-btn{display:flex;align-items:center;gap:8px;max-width:280px;min-height:44px;padding:8px 14px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);font-weight:700}
 .trip-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .trip-btn:hover{background:var(--panel3)}
@@ -230,7 +230,14 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .leaflet-bar{border:1px solid var(--line)!important}
 .measure-label{background:var(--measure);color:#2a2000;border:none;font-weight:700;font-size:13px;padding:3px 8px;border-radius:8px;box-shadow:none}
 .measure-label:before{display:none}
-.adding .leaflet-container,.measuring .leaflet-container{cursor:crosshair}
+.pins-step .leaflet-container,.measuring .leaflet-container,.waypointing .leaflet-container{cursor:crosshair}
+.wp-mk{width:26px;height:26px;border-radius:50%;background:#facc15;border:2px solid #2a2000;color:#2a2000;font:800 14px/22px var(--font);text-align:center;box-shadow:0 2px 7px rgba(0,0,0,.55);cursor:grab}
+.wpb{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#facc15;color:#2a2000;font:800 12px/1 var(--font);border:2px solid #2a2000;flex:none}
+.banner.waypoint{background:#facc15;color:#2a2000}
+.banner.waypoint .btn{background:rgba(0,0,0,.14)}
+.btn.yellow{background:#facc15;color:#2a2000}
+.pill.wp{background:rgba(250,204,21,.16);color:#fde047}
+.pill.wp button{border:none;background:none;color:inherit;padding:0 0 0 4px;font-size:13px}
 .adding .leaflet-marker-icon{cursor:default}
 
 /* ---------- Menus & modals ---------- */
@@ -316,7 +323,10 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 /* ---------- Phones ---------- */
 @media (max-width:820px){
   .top{padding:8px 10px;gap:8px}
-  .brand .bt{display:none}
+  .brand .logo{height:30px;margin:-2px 0}
+  .trip-btn{padding:8px 10px}
+  #redoBtn{display:none}
+  .top-right{gap:4px}
   .trip-btn{flex:1;max-width:none;min-width:0}
   .steps{order:5;width:100%;margin:0}
   .step{flex:1;justify-content:center;padding:6px 8px;gap:6px;font-size:15px}
@@ -345,15 +355,12 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">
-      <svg viewBox="0 0 32 42" aria-hidden="true"><path d="M16 1C7.7 1 1 7.6 1 15.8c0 10.6 13.2 24 14.1 25a1.2 1.2 0 0 0 1.8 0C17.8 39.8 31 26.4 31 15.8 31 7.6 24.3 1 16 1z" fill="#22c55e"/><circle cx="16" cy="15.5" r="5.5" fill="#0e1218"/></svg>
-      <span class="bt">Larson Family Maps</span>
-    </div>
+    <div class="brand"><img src="logo.png" alt="Larson Family Maps" class="logo" width="148" height="50"></div>
     <button class="trip-btn" id="tripBtn" title="Switch or manage trips"><i class="fa-solid fa-suitcase-rolling"></i><span id="tripName">Trip</span><i class="fa-solid fa-caret-down"></i></button>
     <nav class="steps" aria-label="Steps">
       <button class="step" data-step="pins"><span class="num">1</span>Pins</button>
       <button class="step" data-step="route"><span class="num">2</span>Route</button>
-      <button class="step" data-step="days"><span class="num">3</span>Days</button>
+      <button class="step" data-step="days"><span class="num">3</span>Segments</button>
     </nav>
     <div class="top-right">
       <div class="save-status ok" id="saveStatus" title="Your trips save automatically in this browser"><i class="fa-solid fa-circle-check"></i><span class="st">Saved</span></div>
@@ -503,7 +510,7 @@ function normalizeTrip(t){
   t.pins.forEach(p => { p.id ||= uid(); p.name = String(p.name ?? 'Pin'); p.notes = String(p.notes || ''); p.links = Array.isArray(p.links) ? p.links.filter(l => l && l.url) : []; if (!/^#[0-9a-f]{6}$/i.test(p.color||'')) p.color = DEFAULT_COLOR; if (!ICON_SET.has(p.icon)) p.icon = 'location-dot'; if (!lids.has(p.layerId)) p.layerId = t.layers[0].id; p.address = String(p.address || ''); p.poi = !!p.poi; if (p.stay && p.stay.address && !p.address) p.address = String(p.stay.address); p.stay = normStay(p.stay); });
   const pids = new Set(t.pins.map(p => p.id));
   t.route = (Array.isArray(t.route) ? t.route : []).filter(s => s && pids.has(s.pinId));
-  t.route.forEach(s => { s.sid ||= uid(); s.overnight = !!s.overnight; s.nights = clamp(Math.round(Number(s.nights) || 1), 1, 30); if (typeof s.sugFrac !== 'number') delete s.sugFrac; });
+  t.route.forEach(s => { s.sid ||= uid(); s.via = Array.isArray(s.via) ? s.via.filter(v => v && isFinite(v.lat) && isFinite(v.lng)).map(v => ({id: v.id || uid(), lat: +v.lat, lng: +v.lng})) : []; if (typeof s.viaTo !== 'string') delete s.viaTo; s.overnight = !!s.overnight; s.nights = clamp(Math.round(Number(s.nights) || 1), 1, 30); if (typeof s.sugFrac !== 'number') delete s.sugFrac; });
   t.startDate = typeof t.startDate === 'string' ? t.startDate : '';
   t.maxDayHours = clamp(Number(t.maxDayHours) || 7, 1, 20);
   return t;
@@ -691,7 +698,7 @@ function renderMap(){
     rec.sig = sig;
   }
   for (const [id, rec] of markers) if (!seen.has(id)) { map.removeLayer(rec.m); markers.delete(id); }
-  drawRoute(); drawSuggestions();
+  drawRoute(); drawSuggestions(); drawWaypoints();
 }
 let lastRouteSig = '';
 function legSegs(t){ const out = []; let s = 0; for (let i = 0; i < t.route.length - 1; i++) { out.push(s); if (t.route[i + 1].overnight && i + 1 < t.route.length - 1) s++; } return out; }
@@ -738,15 +745,25 @@ $('#fitBtn').onclick = fitTrip;
 function fitRoute(){ const t = trip(); const pts = t.route.map(s => pinById(s.pinId)).filter(Boolean).map(p => [p.lat, p.lng]); if (pts.length > 1) map.fitBounds(pts, {padding: [60, 60], maxZoom: 12}); }
 function flyToPin(p){ const z = Math.max(map.getZoom(), 9); map.flyTo([p.lat, p.lng], z, {duration: .6}); }
 
-/* ---------- map clicks ---------- */
+/* ---------- map clicks ----------
+   Pins step: a click on the map drops a pin (waits a moment so a double-click zooms instead).
+   A click that only closes a popup, a menu or the search list does nothing else. */
+let clickTimer = null, popupClosedAt = 0, swallowUntil = 0;
+map.on('popupclose', () => { popupClosedAt = Date.now(); });
+$('#map').addEventListener('pointerdown', () => { if (!$('#searchResults').hidden || !$('#basemapMenu').hidden || openMenuEl || document.activeElement === $('#searchInput')) swallowUntil = Date.now() + 700; }, true);
 map.on('click', e => {
-  if (ui.mode === 'add') addPinAt(e.latlng);
-  else if (ui.mode === 'measure') addMeasurePoint(e.latlng);
+  if (ui.mode === 'measure') { addMeasurePoint(e.latlng); return; }
+  if (Date.now() < swallowUntil || Date.now() - popupClosedAt < 400) return;
+  if (ui.mode === 'waypoint') { clearTimeout(clickTimer); clickTimer = setTimeout(() => addWaypointAt(e.latlng), 260); return; }
+  if (ui.step !== 'pins') return;
+  if (ui.editorPinId) { closeEditor(); return; }
+  clearTimeout(clickTimer); clickTimer = setTimeout(() => addPinAt(e.latlng), 260);
 });
+map.on('dblclick', () => clearTimeout(clickTimer));
 function onPinClick(id){
   const p = pinById(id); if (!p) return;
   if (ui.mode === 'measure') { addMeasurePoint(L.latLng(p.lat, p.lng)); return; }
-  if (ui.mode === 'add') { markers.get(id)?.m.openTooltip(); return; }
+  if (ui.mode === 'waypoint') { toast('Waypoints go on roads between stops. To visit this pin, add it to the route as a stop.'); return; }
   if (ui.step === 'route') { addToRoute(id); return; }
   openEditor(id, false);
 }
@@ -823,7 +840,9 @@ function deletePin(id){
    ROUTING (OSRM) — leg by leg, unlimited stops
    ========================================================= */
 const legCache = new Map();   // key -> {status:'ok'|'pending'|'error', d, t, segs:[{m,c}], ferry:{d,t}|null, err, used}
-function legKey(a, b){ return `${a.lat.toFixed(5)},${a.lng.toFixed(5)}>${b.lat.toFixed(5)},${b.lng.toFixed(5)}`; }
+function legKey(a, b, via){ return `${a.lat.toFixed(5)},${a.lng.toFixed(5)}>${b.lat.toFixed(5)},${b.lng.toFixed(5)}` + (via && via.length ? '|' + via.map(v => `${v.lat.toFixed(5)},${v.lng.toFixed(5)}`).join(';') : ''); }
+/* waypoints live on the stop where a drive starts, and only count while the next stop is still the same pin */
+function legVias(t, i){ const s = t.route[i], n = t.route[i + 1]; return s && n && s.via && s.via.length && s.viaTo === n.pinId ? s.via : []; }
 (function loadLegs(){ try { const arr = JSON.parse(localStorage.getItem(LEGS_KEY) || '[]'); arr.forEach(([k, v]) => { v.status = 'ok'; legCache.set(k, v); }); } catch {} })();
 let legSaveTimer = null;
 function saveLegsSoon(){ clearTimeout(legSaveTimer); legSaveTimer = setTimeout(saveLegs, 1500); }
@@ -841,7 +860,7 @@ function routeLegs(t){
   for (let i = 0; i < t.route.length - 1; i++) {
     const a = t.pins.find(p => p.id === t.route[i].pinId), b = t.pins.find(p => p.id === t.route[i + 1].pinId);
     if (!a || !b) { legs.push({i, a, b, key: null, info: null}); continue; }
-    const key = legKey(a, b); legs.push({i, a, b, key, info: legCache.get(key) || null});
+    const vias = legVias(t, i); const key = legKey(a, b, vias); legs.push({i, a, b, vias, sid: t.route[i].sid, key, info: legCache.get(key) || null});
   }
   return legs;
 }
@@ -883,6 +902,7 @@ function ensureRoute(){
     if (l.info && l.info.status === 'error' && !(l.info.kind === 'network' && Date.now() - l.info.at > 20000)) { chunk = null; continue; }
     if (l.a.lat === l.b.lat && l.a.lng === l.b.lng) { legCache.set(l.key, {status: 'ok', d: 0, t: 0, segs: [], ferry: null, used: Date.now()}); chunk = null; continue; }
     legCache.set(l.key, {status: 'pending'});
+    if (l.vias.length) { routeQueue.push({pts: [{lat: l.a.lat, lng: l.a.lng}, ...l.vias.map(v => ({lat: v.lat, lng: v.lng, via: true})), {lat: l.b.lat, lng: l.b.lng}], keys: [l.key]}); chunk = null; continue; }
     const crow = haversine(l.a, l.b);
     if (!chunk || chunk.legs.length >= 9 || chunk.lastIndex !== l.i - 1 || chunk.crow + crow > 1350000) { chunk = {pts: [l.a], legs: [], lastIndex: l.i, crow: 0}; chunks.push(chunk); }
     chunk.pts.push(l.b); chunk.legs.push(l.key); chunk.lastIndex = l.i; chunk.crow += crow;
@@ -933,7 +953,7 @@ function decode6(str){
   return out;
 }
 async function valhallaRoute(pts){
-  const body = {locations: pts.map(p => ({lat: +p.lat.toFixed(6), lon: +p.lng.toFixed(6), type: 'break'})), costing: 'auto', units: 'kilometers', directions_type: 'maneuvers'};
+  const body = {locations: pts.map(p => ({lat: +p.lat.toFixed(6), lon: +p.lng.toFixed(6), type: p.via ? 'via' : 'break'})), costing: 'auto', units: 'kilometers', directions_type: 'maneuvers'};
   try {
     const r = await fetchJSON(VALHALLA + '?json=' + encodeURIComponent(JSON.stringify(body)), 25000);
     const j = r.json;
@@ -957,9 +977,10 @@ function parseValhallaLeg(leg){
 }
 async function osrmRoute(pts){
   const coords = pts.map(p => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`).join(';');
+  const wps = pts.some(p => p.via) ? '&waypoints=' + pts.map((p, i) => p.via ? null : i).filter(i => i !== null).join(';') : '';
   for (const server of OSRM) {
     try {
-      const r = await fetchJSON(server + coords + '?overview=false&steps=true&geometries=geojson', 25000);
+      const r = await fetchJSON(server + coords + '?overview=false&steps=true&geometries=geojson' + wps, 25000);
       const j = r.json;
       if (j && j.code === 'Ok' && j.routes && j.routes[0]) return {ok: true, legs: j.routes[0].legs.map(parseLeg)};
       if (j && (j.code === 'NoRoute' || j.code === 'NoSegment')) return {ok: false, code: j.code};
@@ -971,6 +992,46 @@ async function osrmRoute(pts){
 let routeRenderTimer = null;
 function routeUpdated(){ clearTimeout(routeRenderTimer); routeRenderTimer = setTimeout(() => { drawRoute(); if (ui.step !== 'pins') renderPanelSoft(); }, 120); }
 function retryErrors(){ const t = trip(); routeLegs(t).forEach(l => { if (l.info && l.info.status === 'error') legCache.delete(l.key); }); lastRouteSig = ''; ensureRoute(); renderPanelSoft(); drawRoute(); }
+
+/* ---------- waypoints ---------- */
+function nearestOnLine(coords, ll){
+  // returns {d: meters from ll to the line, pos: meters along the line to the nearest point}
+  const k = Math.cos(ll.lat * Math.PI / 180); let best = {d: Infinity, pos: 0}; let along = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const a = coords[i - 1], b = coords[i];
+    const ax = a[1] * k, ay = a[0], bx = b[1] * k, by = b[0], px = ll.lng * k, py = ll.lat;
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy; let u = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0; u = clamp(u, 0, 1);
+    const q = {lat: ay + u * dy, lng: (ax + u * dx) / k}; const segLen = haversine({lat: a[0], lng: a[1]}, {lat: b[0], lng: b[1]});
+    const d = haversine(q, ll); if (d < best.d) best = {d, pos: along + u * segLen};
+    along += segLen;
+  }
+  return best;
+}
+function legLine(l){ const c = []; if (l.info && l.info.status === 'ok' && l.info.segs.length) l.info.segs.forEach(s => c.push(...s.c)); if (c.length < 2) { c.length = 0; c.push([l.a.lat, l.a.lng], ...l.vias.map(v => [v.lat, v.lng]), [l.b.lat, l.b.lng]); } return c; }
+function addWaypointAt(ll){
+  const t = trip(); const legs = routeLegs(t).filter(l => l.a && l.b);
+  if (!legs.length) { toast('Make a route with at least 2 stops first.'); return; }
+  let best = null; for (const l of legs) { const n = nearestOnLine(legLine(l), ll); if (!best || n.d < best.n.d) best = {l, n}; }
+  const l = best.l; const line = legLine(l);
+  const id = uid(); const all = l.vias.map(v => ({v, pos: nearestOnLine(line, v).pos})).concat([{v: {id, lat: +ll.lat.toFixed(6), lng: +ll.lng.toFixed(6)}, pos: best.n.pos}]).sort((a, b) => a.pos - b.pos).map(x => x.v);
+  change('Add waypoint', t => { const s = t.route[l.i]; s.via = all; s.viaTo = t.route[l.i + 1].pinId; });
+  toast(`Waypoint added. The drive from ${l.a.name} to ${l.b.name} now passes through it.`, {action: 'Undo', onAction: undo});
+}
+function removeWaypoint(sid, id){ change('Remove waypoint', t => { const s = t.route.find(x => x.sid === sid); if (s) s.via = s.via.filter(v => v.id !== id); }); map.closePopup(); undoToast('Waypoint removed'); }
+const wpLayer = L.layerGroup().addTo(map);
+function drawWaypoints(){
+  wpLayer.clearLayers(); const t = trip();
+  routeLegs(t).forEach(l => l.vias.forEach((v, k) => {
+    const m = L.marker([v.lat, v.lng], {icon: L.divIcon({className: '', html: '<div class="wp-mk">W</div>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14], tooltipAnchor: [0, -15]}), draggable: true, zIndexOffset: 900});
+    m.bindTooltip(`Waypoint ${l.vias.length > 1 ? k + 1 + ' ' : ''}between ${esc(l.a.name)} and ${esc(l.b.name)} · drag to move`, {className: 'pin-tip', direction: 'top'});
+    const div = document.createElement('div');
+    div.innerHTML = `<div class="pp-title"><span class="wpb" style="margin-right:6px">W</span>Waypoint</div><div class="pp-sub">The drive from ${esc(l.a.name)} to ${esc(l.b.name)} is forced to pass through here. Drag the W to move it.</div><button class="btn red" data-pp="del"><i class="fa-solid fa-trash-can"></i>Remove waypoint</button>`;
+    div.addEventListener('click', ev => { if (ev.target.closest('[data-pp=del]')) removeWaypoint(l.sid, v.id); });
+    m.bindPopup(div, {minWidth: 230, maxWidth: 280});
+    m.on('dragend', () => { const p = m.getLatLng(); change('Move waypoint', t => { const s = t.route.find(x => x.sid === l.sid); const w = s && s.via.find(x => x.id === v.id); if (w) { w.lat = +p.lat.toFixed(6); w.lng = +p.lng.toFixed(6); } }); });
+    m.addTo(wpLayer);
+  }));
+}
 
 /* ---------- route editing ---------- */
 function addToRoute(pinId, again){
@@ -1057,9 +1118,9 @@ function suggestDays(){
     if (tt > max * 1.1) { const k = Math.ceil(tt / max) - 1; longLegs.push({i, k}); acc = tt / (k + 1); }
     else acc += tt;
   });
-  change('Split into days', t => t.route.forEach((s, i) => { s.overnight = nights.has(i); }));
+  change('Split into segments', t => t.route.forEach((s, i) => { s.overnight = nights.has(i); }));
   ui.sugs = ui.sugs.filter(x => x.trip !== t.id);
-  if (!longLegs.length) { drawSuggestions(); undoToast(`Split into ${nights.size + 1} day${nights.size ? 's' : ''} of up to about ${t.maxDayHours} hours of driving.`); return; }
+  if (!longLegs.length) { drawSuggestions(); undoToast(`Split into ${nights.size + 1} segment${nights.size ? 's' : ''} of up to about ${t.maxDayHours} hours of driving.`); return; }
   findSuggestions(t, st, longLegs);
 }
 async function findSuggestions(t, st, longLegs){
@@ -1129,6 +1190,8 @@ function dismissSug(id){ ui.sugs = ui.sugs.filter(s => s.id !== id); map.closePo
 function render(){ renderTop(); renderMap(); renderPanel(); }
 function renderTop(){
   const t = trip(); $('#tripName').textContent = t.name;
+  document.body.classList.toggle('pins-step', ui.step === 'pins' && !ui.mode);
+  $('#searchInput').placeholder = ui.step === 'pins' ? (innerWidth <= 820 ? `Search, or ${TAP.toLowerCase()} the map to add pins` : `Search, or ${TAP.toLowerCase()} anywhere on the map to add pins`) : 'Search for a place or address';
   document.querySelectorAll('.step').forEach(b => b.classList.toggle('active', b.dataset.step === ui.step));
   const h = H(); $('#undoBtn').disabled = !h.undo.length; $('#redoBtn').disabled = !h.redo.length;
   $('#undoBtn').title = h.undo.length ? `Undo: ${h.undo[h.undo.length - 1].label}` : 'Nothing to undo';
@@ -1161,12 +1224,13 @@ function renderPanel(){
 function pinsView(){
   const t = trip(); const nums = stopNumbers(t);
   const f = ui.filter.trim().toLowerCase();
-  let html = `<button class="btn big blue" data-act="add-mode"><i class="fa-solid fa-${ui.mode === 'add' ? 'check' : 'plus'}"></i>${ui.mode === 'add' ? 'Done adding pins' : 'Add pins'}</button>`;
+  let html = '';
   if (!t.pins.length) {
-    return html + `<div class="empty"><i class="fa-solid fa-map-location-dot big"></i><b>Step 1: Drop your pins</b>Put down every place you might want to see. Don’t worry about the order yet.<br><br>Press <b style="display:inline;font-size:inherit;color:var(--pins)">Add pins</b>, then click the map. Or search for a place in the box on the map.</div>
+    return html + `<div class="empty"><i class="fa-solid fa-map-location-dot big"></i><b>Step 1: Drop your pins</b>Put down every place you might want to see. Don’t worry about the order yet.<br><br><b style="display:inline;font-size:inherit;color:var(--pins)">${TAP} anywhere on the map</b> to drop a pin, or search for a place in the box on the map.</div>
       <button class="btn big ghost" data-act="import"><i class="fa-solid fa-file-import"></i>Import a Google My Map</button>`;
   }
-  html += `<div class="section-title"><h3>${t.pins.length} pin${t.pins.length === 1 ? '' : 's'}</h3><button class="btn sm ghost" data-act="new-layer"><i class="fa-solid fa-plus"></i>New layer</button></div>`;
+  html += `<p class="hint" style="margin-top:0"><i class="fa-solid fa-hand-pointer" style="color:var(--pins)"></i> ${TAP} anywhere on the map to drop a pin. ${TAP} a pin to edit it.</p>`;
+  html += `<div class="section-title" style="margin-top:12px"><h3>${t.pins.length} pin${t.pins.length === 1 ? '' : 's'}</h3><button class="btn sm ghost" data-act="new-layer"><i class="fa-solid fa-plus"></i>New layer</button></div>`;
   html += `<input class="input" id="pinFilter" type="search" placeholder="Search my pins by name or notes" value="${esc(ui.filter)}" aria-label="Find a pin">`;
   html += `<div id="layerList">${layersHtml(t, nums, f)}</div>`;
   return html;
@@ -1203,7 +1267,8 @@ function legHtml(l, t){
   if (!x || x.status === 'pending') return `<div class="leg pending"><span class="loading-pill"><i class="fa-solid fa-circle-notch fa-spin"></i>Finding the drive…</span></div>`;
   if (x.status === 'error') return `<div class="leg"><span class="pill err"><i class="fa-solid fa-triangle-exclamation"></i>${esc(x.err)}</span>${x.kind === 'network' ? '<button class="retry" data-act="retry">Try again</button>' : ''}</div>`;
   if (x.d === 0) return `<div class="leg" data-act="zoom-leg" data-i="${l.i}"><span class="arrow"><i class="fa-solid fa-arrow-down"></i></span>Same place</div>`;
-  return `<div class="leg" data-act="zoom-leg" data-i="${l.i}" title="Show this drive on the map"><span class="arrow"><i class="fa-solid fa-arrow-down"></i></span><b>${miles(x.d)}</b> · ${hrs(x.t)}${x.ferry ? `<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry ${miles(x.ferry.d)} · ${hrs(x.ferry.t)}</span>` : ''}</div>`;
+  const wp = l.vias && l.vias.length ? `<span class="pill wp"><span class="wpb" style="width:16px;height:16px;font-size:9px;border-width:1px">W</span>via ${l.vias.length} waypoint${l.vias.length === 1 ? '' : 's'}<button data-act="clear-vias" data-sid="${l.sid}" title="Remove these waypoints" aria-label="Remove these waypoints"><i class="fa-solid fa-xmark"></i></button></span>` : '';
+  return `<div class="leg" data-act="zoom-leg" data-i="${l.i}" title="Show this drive on the map"><span class="arrow"><i class="fa-solid fa-arrow-down"></i></span><b>${miles(x.d)}</b> · ${hrs(x.t)}${x.ferry ? `<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry ${miles(x.ferry.d)} · ${hrs(x.ferry.t)}</span>` : ''}${wp}</div>`;
 }
 function totalsHtml(st, n, extra = ''){
   let status = '';
@@ -1223,7 +1288,8 @@ function routeView(){
     <button class="btn sm ghost" data-act="add-all" ${notIn ? '' : 'disabled'}><i class="fa-solid fa-circle-plus"></i>Add all pins${notIn ? ` (${notIn})` : ''}</button>
     <button class="btn sm ghost" data-act="suggest" ${n >= 4 ? '' : 'disabled'} title="Reorders the stops between the first and last to make the drive shorter"><i class="fa-solid fa-wand-magic-sparkles"></i>Suggest order</button>
     <button class="btn sm ghost" data-act="reverse" ${n >= 2 ? '' : 'disabled'}><i class="fa-solid fa-arrow-right-arrow-left"></i>Reverse</button>
-    <button class="btn sm ghost" data-act="clear-route" ${n ? '' : 'disabled'}><i class="fa-solid fa-trash-can"></i>Clear route</button></div>`;
+    <button class="btn sm ghost" data-act="clear-route" ${n ? '' : 'disabled'}><i class="fa-solid fa-trash-can"></i>Clear route</button></div>
+    <button class="btn ${ui.mode === 'waypoint' ? 'yellow' : 'ghost'}" style="width:100%;margin-top:8px" data-act="wp-mode" ${n >= 2 ? '' : 'disabled'} title="Make the route pass through a spot, like a scenic road"><span class="wpb">W</span>${ui.mode === 'waypoint' ? `Done adding waypoints` : 'Add waypoint (scenic route)'}</button>`;
   if (!n) return html + `<div class="empty"><i class="fa-solid fa-hand-pointer big"></i>No stops yet.</div>`;
   html += `<ol class="stops" id="stopList">`;
   t.route.forEach((s, i) => {
@@ -1237,7 +1303,7 @@ function routeView(){
     </div>${i < n - 1 ? legHtml(st.legs[i], t) : ''}</li>`;
   });
   html += `</ol>`;
-  if (n >= 2) html += `<button class="btn big amber" style="margin-top:16px" data-act="go" data-step="days">Next: Step 3, plan the days<i class="fa-solid fa-arrow-right"></i></button>`;
+  if (n >= 2) html += `<button class="btn big amber" style="margin-top:16px" data-act="go" data-step="days">Next: Step 3, plan the segments<i class="fa-solid fa-arrow-right"></i></button>`;
   html += `<p class="hint" style="font-size:13px">Drive times are estimates without traffic, stops or ferry wait times.</p>`;
   return html;
 }
@@ -1259,37 +1325,37 @@ function setupSortable(){
 /* ---- Step 3: days ---- */
 function daysView(){
   const t = trip(); const n = t.route.length;
-  if (n < 2) return `<div class="empty"><i class="fa-solid fa-calendar-days big"></i><b>Step 3: Plan the days</b>First connect at least two pins into a route.</div><button class="btn big green" data-act="go" data-step="route"><i class="fa-solid fa-arrow-left"></i>Go to Step 2: Route</button>`;
+  if (n < 2) return `<div class="empty"><i class="fa-solid fa-calendar-days big"></i><b>Step 3: Plan the segments</b>First connect at least two pins into a route.</div><button class="btn big green" data-act="go" data-step="route"><i class="fa-solid fa-arrow-left"></i>Go to Step 2: Route</button>`;
   const st = routeStats(t); const days = computeDays(t, st);
-  let html = totalsHtml(st, n, ' days').replace('total driving', `${days.length} day${days.length === 1 ? '' : 's'} · total driving`);
+  let html = totalsHtml(st, n, ' days').replace('total driving', `${days.length} segment${days.length === 1 ? '' : 's'} · total driving`);
   const lodging = lodgingTotals(t); if (lodging) html += `<p class="hint"><i class="fa-solid fa-bed" style="color:#c4b5fd"></i> Lodging: ${esc(lodging)}</p>`;
-  html += `<label class="label">First day of the trip (optional)</label><input class="input" type="date" id="startDate" value="${esc(t.startDate)}">`;
-  html += `<label class="label">Most driving you want in one day</label>
+  html += `<label class="label">Trip start date (optional)</label><input class="input" type="date" id="startDate" value="${esc(t.startDate)}">`;
+  html += `<label class="label">Most driving you want in one segment</label>
     <div class="row-inline"><select class="input" id="maxHours" style="width:auto;flex:1">${[3,4,5,6,7,8,9,10,11,12].map(h => `<option value="${h}" ${h === t.maxDayHours ? 'selected' : ''}>${h} hours</option>`).join('')}</select>
-    <button class="btn amber" data-act="suggest-days" style="flex:1.3" ${ui.sugBusy ? 'disabled' : ''}><i class="fa-solid fa-wand-magic-sparkles"></i>Split into days</button></div>`;
-  html += `<p class="hint">Or press <b style="color:var(--text)"><i class="fa-solid fa-moon"></i> End day</b> on any stop to sleep there. Use <b style="color:var(--text)">−</b> and <b style="color:var(--text)">+</b> to stay more than one night.</p>`;
+    <button class="btn amber" data-act="suggest-days" style="flex:1.3" ${ui.sugBusy ? 'disabled' : ''}><i class="fa-solid fa-wand-magic-sparkles"></i>Split into segments</button></div>`;
+  html += `<p class="hint">Or press <b style="color:var(--text)"><i class="fa-solid fa-moon"></i> End segment</b> on any stop where you’ll sleep. Use <b style="color:var(--text)">−</b> and <b style="color:var(--text)">+</b> to stay more than one night.</p>`;
   html += suggestionsHtml();
   days.forEach((d, di) => {
     const col = dayColor(d.seg); const dateTxt = d.date ? ' · ' + d.date.toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric'}) : '';
     if (d.kind === 'layover') {
       const p = pinById(t.route[d.idx[0]].pinId);
-      html += `<div class="day layover" style="--dc:${col}"><div class="day-head"><div class="dh"><div class="d1">Day ${d.n}${dateTxt} · Layover</div><div class="d2">${esc(stopTown(t, d.idx[0]))}</div><div class="d3"><span><i class="fa-solid fa-mug-saucer"></i> No driving · night ${d.night} of ${d.nights}${p && p.stay ? ' at ' + esc(p.name) : ''}</span></div></div></div></div>`;
+      html += `<div class="day layover" style="--dc:${col}"><div class="day-head"><div class="dh"><div class="d1">Segment ${d.n}${dateTxt} · Layover</div><div class="d2">${esc(stopTown(t, d.idx[0]))}</div><div class="d3"><span><i class="fa-solid fa-mug-saucer"></i> No driving · night ${d.night} of ${d.nights}${p && p.stay ? ' at ' + esc(p.name) : ''}</span></div></div></div></div>`;
       return;
     }
     const long = d.s > (t.maxDayHours + 0.5) * 3600;
     const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
-    html += `<div class="day" style="--dc:${col}"><div class="day-head"><div class="dh"><div class="d1">Day ${d.n}${dateTxt}</div>
+    html += `<div class="day" style="--dc:${col}"><div class="day-head"><div class="dh"><div class="d1">Segment ${d.n}${dateTxt}</div>
       <div class="d2">${esc(from)}${from !== to ? ' → ' + esc(to) : ''}</div>
-      <div class="d3"><span><b style="color:var(--text)">${miles(d.d)}</b> · ${hrs(d.s)} driving</span>${long ? '<span class="pill warn"><i class="fa-solid fa-triangle-exclamation"></i>Long day</span>' : ''}${d.ferry ? '<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry</span>' : ''}${d.missing ? `<span class="pill err">${d.missing} drive${d.missing === 1 ? '' : 's'} missing</span>` : ''}</div></div>
-      <button class="mini-btn" data-act="zoom-day" data-i="${di}" title="Show this day on the map"><i class="fa-solid fa-magnifying-glass-location"></i></button></div><ol class="stops" style="margin:0">`;
+      <div class="d3"><span><b style="color:var(--text)">${miles(d.d)}</b> · ${hrs(d.s)} driving</span>${long ? '<span class="pill warn"><i class="fa-solid fa-triangle-exclamation"></i>Long drive</span>' : ''}${d.ferry ? '<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry</span>' : ''}${d.missing ? `<span class="pill err">${d.missing} drive${d.missing === 1 ? '' : 's'} missing</span>` : ''}</div></div>
+      <button class="mini-btn" data-act="zoom-day" data-i="${di}" title="Show this segment on the map"><i class="fa-solid fa-magnifying-glass-location"></i></button></div><ol class="stops" style="margin:0">`;
     d.idx.forEach((i, k) => {
       const s = t.route[i]; const p = pinById(s.pinId); const woke = k === 0 && d.seg > 0; const last = i === n - 1;
       const endsDay = k === d.idx.length - 1 && !last;
       let right;
-      if (woke) right = '<span class="endpoint">woke up here</span>';
+      if (woke) right = '<span class="endpoint">segment starts</span>';
       else if (last) right = '<span class="endpoint">trip ends</span>';
       else if (i === 0) right = '<span class="endpoint">start</span>';
-      else right = `<button class="night-btn${s.overnight ? ' on' : ''}" data-act="toggle-night" data-sid="${s.sid}" title="${s.overnight ? 'Don’t sleep here' : 'End the day and sleep here'}"><i class="fa-solid fa-moon"></i>${s.overnight ? 'Sleep here' : 'End day'}</button>`;
+      else right = `<button class="night-btn${s.overnight ? ' on' : ''}" data-act="toggle-night" data-sid="${s.sid}" title="${s.overnight ? 'Press if you’re not sleeping here' : 'End this segment and sleep here'}"><i class="fa-solid fa-moon"></i>${s.overnight ? 'Sleeping here' : 'End segment'}</button>`;
       let extra = '';
       if (endsDay && s.overnight) extra = `<div class="stop-extra"><span class="nights"><button data-act="nights" data-sid="${s.sid}" data-d="-1" aria-label="One fewer night">−</button><b>${s.nights} night${s.nights === 1 ? '' : 's'}</b><button data-act="nights" data-sid="${s.sid}" data-d="1" aria-label="One more night">+</button></span>${stayChip(p, true)}</div>`;
       else if (p.stay && !woke) extra = `<div class="stop-extra">${stayChip(p)}</div>`;
@@ -1300,7 +1366,7 @@ function daysView(){
   });
   html += `<div style="display:grid;gap:8px;margin-top:18px"><button class="btn big purple" data-act="make-doc"><i class="fa-solid fa-file-export"></i>Export trip itinerary</button>
     <button class="btn ghost" data-act="copy-text"><i class="fa-solid fa-copy"></i>Copy itinerary as text</button></div>
-    <p class="hint" style="font-size:13px">The exported itinerary is a Word file with a map for each day and all your stay details. It opens in Microsoft Word, Pages and Google Docs.</p>`;
+    <p class="hint" style="font-size:13px">The exported itinerary is a Word file with a map for each segment and all your stay details. It opens in Microsoft Word, Pages and Google Docs.</p>`;
   return html;
 }
 function stayChip(p, offerAdd){
@@ -1317,7 +1383,7 @@ function stayChip(p, offerAdd){
 }
 function suggestionsHtml(){
   const sugs = liveSugs(); if (!sugs.length && !ui.sugBusy) return '';
-  let h = `<div class="sug-card"><div class="sug-title"><i class="fa-solid fa-circle-question"></i>Suggested overnight stops</div><p class="hint" style="margin:6px 0 4px">Some drives are longer than your daily limit. These towns are about the right distance along the way. They’re only suggestions until you press Add.</p>`;
+  let h = `<div class="sug-card"><div class="sug-title"><i class="fa-solid fa-circle-question"></i>Suggested overnight stops</div><p class="hint" style="margin:6px 0 4px">Some drives are longer than your limit for one segment. These towns are about the right distance along the way. They’re only suggestions until you press Add.</p>`;
   sugs.forEach(s => { h += `<div class="sug-row"><span class="q">?</span><span class="txt" data-act="focus-sug" data-id="${s.id}"><b>${esc(s.name)}</b><small>about ${hrs(s.hours)} past ${esc(s.fromName)}</small></span><button class="btn sm amber" data-act="add-sug" data-id="${s.id}">Add</button><button class="mini-btn" data-act="dismiss-sug" data-id="${s.id}" title="Not this one" aria-label="Not this one"><i class="fa-solid fa-xmark"></i></button></div>`; });
   if (ui.sugBusy) h += `<p class="hint"><i class="fa-solid fa-circle-notch fa-spin"></i> Looking for towns along the way…</p>`;
   else if (sugs.length > 1) h += `<button class="btn amber" style="width:100%;margin-top:8px" data-act="add-all-sugs"><i class="fa-solid fa-check-double"></i>Add all ${sugs.length} suggested stops</button>`;
@@ -1461,7 +1527,9 @@ document.addEventListener('click', async e => {
   const act = el.dataset.act, id = el.dataset.id;
   const t = trip();
   switch (act) {
-    case 'add-mode': setMode(ui.mode === 'add' ? null : 'add'); break;
+    case 'wp-mode': setMode(ui.mode === 'waypoint' ? null : 'waypoint'); break;
+    case 'del-wp': removeWaypoint(el.dataset.sid, id); break;
+    case 'clear-vias': change('Remove waypoints', t => { const s = t.route.find(x => x.sid === el.dataset.sid); if (s) s.via = []; }); undoToast('Waypoints removed'); break;
     case 'import': $('#fileInput').click(); break;
     case 'new-layer': { const name = await askText('New layer', 'Layer name (for example “Food” or “Maybe”)', ''); if (name) { const lid = uid(); change('New layer', t => { t.layers.push({id: lid, name, visible: true}); t.activeLayerId = lid; }); toast(`New pins will go into “${name}”.`); } break; }
     case 'toggle-collapse': ui.collapsed.has(id) ? ui.collapsed.delete(id) : ui.collapsed.add(id); renderPanel(); break;
@@ -1485,8 +1553,8 @@ document.addEventListener('click', async e => {
     case 'clear-route': clearRoute(); break;
     case 'remove-stop': removeStop(el.dataset.sid); break;
     case 'retry': retryErrors(); break;
-    case 'zoom-leg': { const l = routeStats(t).legs[+el.dataset.i]; if (l && l.a && l.b) { const pts = [[l.a.lat, l.a.lng], [l.b.lat, l.b.lng]]; if (l.info && l.info.segs) l.info.segs.forEach(s => s.c.forEach(c => pts.push(c))); map.fitBounds(pts, {padding: [70, 70], maxZoom: 13}); } break; }
-    case 'toggle-night': change('End day here', t => { const s = t.route.find(x => x.sid === el.dataset.sid); s.overnight = !s.overnight; }); break;
+    case 'zoom-leg': { if (e.target.closest('[data-act=clear-vias]')) break; const l = routeStats(t).legs[+el.dataset.i]; if (l && l.a && l.b) { const pts = [[l.a.lat, l.a.lng], [l.b.lat, l.b.lng]]; if (l.info && l.info.segs) l.info.segs.forEach(s => s.c.forEach(c => pts.push(c))); map.fitBounds(pts, {padding: [70, 70], maxZoom: 13}); } break; }
+    case 'toggle-night': change('End segment here', t => { const s = t.route.find(x => x.sid === el.dataset.sid); s.overnight = !s.overnight; }); break;
     case 'nights': change('Change nights', t => { const s = t.route.find(x => x.sid === el.dataset.sid); s.nights = clamp((s.nights || 1) + Number(el.dataset.d), 1, 30); }); break;
     case 'edit-stay': openEditor(id, false); ui.scrollToStay = true; if (!pinById(id).stay) ui.stayPick = true; renderEditor(); break;
     case 'zoom-day': { const st = routeStats(t); const d = computeDays(t, st)[+el.dataset.i]; if (!d) break; const pts = d.idx.map(i => pinById(t.route[i].pinId)).filter(Boolean).map(p => [p.lat, p.lng]); for (let j = d.idx[0]; j < d.idx[d.idx.length - 1]; j++) { const l = st.legs[j]; if (l && l.info && l.info.segs) l.info.segs.forEach(s => s.c.forEach(c => pts.push(c))); } if (pts.length === 1) map.setView(pts[0], 11); else if (pts.length) map.fitBounds(pts, {padding: [60, 60], maxZoom: 12}); break; }
@@ -1557,9 +1625,9 @@ function colorLayer(id){
 /* ---------- steps & modes ---------- */
 function setStep(s){
   if (ui.editorPinId) { ui.editorPinId = null; $('#editor').hidden = true; }
-  if (ui.mode === 'add' && s !== 'pins') ui.mode = null;
+  if (ui.mode === 'waypoint' || ui.mode === 'add') ui.mode = null;
+  document.body.classList.remove('waypointing');
   ui.step = s; prefs.step = s; savePrefs();
-  document.body.classList.toggle('adding', ui.mode === 'add');
   render();
   if (innerWidth <= 820) { $('#panel').classList.remove('collapsed'); updateHandle(); setTimeout(() => map.invalidateSize(), 220); }
 }
@@ -1567,12 +1635,11 @@ document.querySelectorAll('.step').forEach(b => b.onclick = () => setStep(b.data
 function setMode(m){
   if (ui.mode === 'measure' && m !== 'measure') clearMeasure();
   ui.mode = m;
-  if (m === 'add' && ui.step !== 'pins') { ui.step = 'pins'; prefs.step = 'pins'; }
-  if (m === 'add' && ui.editorPinId) { ui.editorPinId = null; $('#editor').hidden = true; }
-  document.body.classList.toggle('adding', m === 'add');
+  if (m === 'waypoint' && trip().route.length < 2) { ui.mode = null; toast('Make a route with at least 2 stops first.'); return; }
+  if (m && ui.editorPinId) { ui.editorPinId = null; $('#editor').hidden = true; }
+  document.body.classList.toggle('waypointing', m === 'waypoint');
   document.body.classList.toggle('measuring', m === 'measure');
   $('#measureBtn').classList.toggle('on', m === 'measure');
-  if (m === 'add') map.doubleClickZoom.disable(); else map.doubleClickZoom.enable();
   $('#measureCard').hidden = m !== 'measure';
   if (m === 'measure') renderMeasure();
   if (m && innerWidth <= 820) { $('#panel').classList.add('collapsed'); updateHandle(); setTimeout(() => map.invalidateSize(), 220); }
@@ -1580,7 +1647,7 @@ function setMode(m){
 }
 function renderBanner(){
   const b = $('#banner'); const t = trip();
-  if (ui.mode === 'add') { const l = layerById(t.activeLayerId); b.className = 'banner add'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-hand-pointer"></i><span>${TAP} the map to drop pins${t.layers.length > 1 ? ` into “${esc(l.name)}”` : ''}</span><button class="btn sm" data-act="add-mode"><i class="fa-solid fa-check"></i>Done</button>`; }
+  if (ui.mode === 'waypoint') { b.className = 'banner waypoint'; b.hidden = false; b.innerHTML = `<span class="wpb">W</span><span>${TAP} the map where the route should go</span><button class="btn sm" data-act="wp-mode"><i class="fa-solid fa-check"></i>Done</button>`; }
   else if (ui.mode === 'measure') { b.className = 'banner measure'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-ruler"></i><span>${TAP} two or more spots to measure</span><button class="btn sm" id="bannerMeasureDone">Done</button>`; $('#bannerMeasureDone').onclick = () => setMode(null); }
   else if (ui.step === 'route' && t.pins.length && !ui.editorPinId) { b.className = 'banner route'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-route"></i><span>${TAP} pins in the order you’ll visit them</span>`; }
   else b.hidden = true;
@@ -1704,8 +1771,9 @@ function pickResult(i){
   else map.flyTo([r.lat, r.lng], r.hasNumber ? 16 : 14, {duration: .7});
   previewMarker = L.marker([r.lat, r.lng], {icon: L.divIcon({className: '', html: '<div class="search-mk"></div>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14]}), zIndexOffset: 2000}).addTo(map);
   const div = document.createElement('div');
-  div.innerHTML = `<div class="pp-title">${esc(r.name)}</div><div class="pp-sub">${esc(r.address && r.address !== r.name ? r.address : r.sub || '')}</div><button class="btn blue" data-pp="add"><i class="fa-solid fa-plus"></i>Add as a pin</button>${ui.step === 'route' ? '<button class="btn green" data-pp="addroute"><i class="fa-solid fa-route"></i>Add pin + add to route</button>' : ''}<a class="btn ghost" href="${esc(gmapsUrl(r))}" target="_blank" rel="noopener" style="width:100%;margin-top:6px;text-decoration:none;color:var(--text)"><i class="fa-solid fa-arrow-up-right-from-square"></i>Open in Google Maps</a>`;
+  div.innerHTML = `<div class="pp-title">${esc(r.name)}</div><div class="pp-sub">${esc(r.address && r.address !== r.name ? r.address : r.sub || '')}</div><button class="btn blue" data-pp="add"><i class="fa-solid fa-plus"></i>Add as a pin</button>${ui.step === 'route' ? '<button class="btn green" data-pp="addroute"><i class="fa-solid fa-route"></i>Add pin + add to route</button>' : ''}${ui.step !== 'pins' && trip().route.length >= 2 ? '<button class="btn yellow" data-pp="waypoint"><span class="wpb">W</span>Add as a waypoint</button>' : ''}<a class="btn ghost" href="${esc(gmapsUrl(r))}" target="_blank" rel="noopener" style="width:100%;margin-top:6px;text-decoration:none;color:var(--text)"><i class="fa-solid fa-arrow-up-right-from-square"></i>Open in Google Maps</a>`;
   div.addEventListener('click', ev => { const b = ev.target.closest('[data-pp]'); if (!b) return;
+    if (b.dataset.pp === 'waypoint') { addWaypointAt(L.latLng(r.lat, r.lng)); map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; return; }
     addPinAt(L.latLng(r.lat, r.lng), {name: r.name, place: r.place, address: r.address, poi: r.poi, toRoute: b.dataset.pp === 'addroute', icon: lastStyle.icon === 'location-dot' && kindIcon(r.kind) !== 'location-dot' ? kindIcon(r.kind) : undefined});
     map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; });
   previewMarker.bindPopup(div, {minWidth: 250, maxWidth: 300, autoPanPadding: [40, 90]});
@@ -1952,6 +2020,7 @@ async function dayMapImage(t, st, d){
   for (const sg of lines) { path(sg); g.setLineDash([]); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 11; g.stroke(); }
   for (const sg of lines) { path(sg); g.setLineDash(sg.m === 'drive' ? [] : [6, 12]); g.strokeStyle = sg.m === 'none' ? '#64748b' : col; g.lineWidth = sg.m === 'drive' ? 6 : 5; g.stroke(); }
   g.setLineDash([]);
+  for (let j = d.idx[0]; j < d.idx[d.idx.length - 1]; j++) (st.legs[j] && st.legs[j].vias || []).forEach(v => { const [x, y] = px(v.lat, v.lng); g.beginPath(); g.arc(x, y, 10, 0, Math.PI * 2); g.fillStyle = '#facc15'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = '#2a2000'; g.stroke(); g.fillStyle = '#2a2000'; g.font = 'bold 12px Calibri, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('W', x, y + 1); g.textAlign = 'left'; });
   const label = (txt, x, y) => { g.font = 'bold 19px Calibri, Arial, sans-serif'; g.lineWidth = 5; g.strokeStyle = 'rgba(255,255,255,.95)'; g.strokeText(txt, x, y); g.fillStyle = '#111827'; g.fillText(txt, x, y); };
   stops.forEach((x, k) => {
     const [cx, cy] = px(x.p.lat, x.p.lng);
@@ -1979,7 +2048,7 @@ async function makeDoc(btn){
     P([new TextRun({text: t.name, bold: true})], {heading: HeadingLevel.TITLE});
     const drives = days.filter(d => d.kind === 'drive');
     const range = days[0].date ? `${days[0].date.toLocaleDateString(undefined, {month: 'long', day: 'numeric'})} – ${days[days.length - 1].date.toLocaleDateString(undefined, {month: 'long', day: 'numeric', year: 'numeric'})}` : '';
-    P([new TextRun({text: [range, `${days.length} day${days.length === 1 ? '' : 's'}`, `${t.route.length} stops`, milesWord(st.d), `about ${hrsWord(st.s)} of driving`].filter(Boolean).join('  ·  '), color: '555555'})], {spacing: {after: 120}});
+    P([new TextRun({text: [range, `${days.length} segment${days.length === 1 ? '' : 's'}`, `${t.route.length} stops`, milesWord(st.d), `about ${hrsWord(st.s)} of driving`].filter(Boolean).join('  ·  '), color: '555555'})], {spacing: {after: 120}});
     const lodging = lodgingTotals(t); if (lodging) P([new TextRun({text: 'Lodging: ', bold: true, color: '6D28D9'}), new TextRun({text: lodging, color: '6D28D9'})], {spacing: {after: 300}});
     if (st.errors) P([new TextRun({text: `Note: ${st.errors} drive${st.errors === 1 ? '' : 's'} couldn’t be found and ${st.errors === 1 ? 'is' : 'are'} not included in the totals.`, italics: true, color: 'B00020'})]);
     const shown = new Set();
@@ -2007,13 +2076,13 @@ async function makeDoc(btn){
       const colHex = dayColor(d.seg, true).slice(1);
       if (d.kind === 'layover') {
         const p = pinById(t.route[d.idx[0]].pinId);
-        P([new TextRun({text: `Day ${d.n}: Layover in ${stopTown(t, d.idx[0])}`, color: colHex})], {heading: HeadingLevel.HEADING_1, spacing: {before: 360}});
+        P([new TextRun({text: `Segment ${d.n}: Layover in ${stopTown(t, d.idx[0])}`, color: colHex})], {heading: HeadingLevel.HEADING_1, spacing: {before: 360}});
         if (d.date) P([new TextRun({text: dayDateLong(d), bold: true})]);
         P([new TextRun({text: `No driving today. Night ${d.night} of ${d.nights}${p && p.stay ? ' at ' + p.name : ''}.`, color: '444444'})]);
         continue;
       }
       const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
-      P([new TextRun({text: `Day ${d.n}: ${from}${from !== to ? ' to ' + to : ''}`, color: colHex})], {heading: HeadingLevel.HEADING_1, spacing: {before: 360}});
+      P([new TextRun({text: `Segment ${d.n}: ${from}${from !== to ? ' to ' + to : ''}`, color: colHex})], {heading: HeadingLevel.HEADING_1, spacing: {before: 360}});
       if (d.date) P([new TextRun({text: dayDateLong(d), bold: true})]);
       P([new TextRun({text: `${milesWord(d.d)}  ·  about ${hrsWord(d.s)} of driving`, color: '444444'})]);
       if (d.ferry) P([new TextRun({text: `Includes a ferry crossing: ${milesWord(d.ferry.d)}, about ${hrsWord(d.ferry.t)} on the water (plus boarding time).`, color: '0369A1'})]);
@@ -2031,7 +2100,7 @@ async function makeDoc(btn){
         }
         if (p.stay && !shown.has(p.id) && (endOfDay || k > 0)) await addStay(p, stop);
         if (k < d.idx.length - 1) { const x = st.legs[i] && st.legs[i].info; const next = stopTitle(t, d.idx[k + 1]);
-          P([new TextRun({text: x && x.status === 'ok' ? `→ Drive ${milesWord(x.d)}, about ${hrsWord(x.t)}, to ${next}${x.ferry ? ' (includes a ferry)' : ''}` : `→ Drive to ${next} (driving time unknown)`, italics: true, color: colHex})], {indent: {left: 720}, spacing: {before: 40}}); }
+          P([new TextRun({text: x && x.status === 'ok' ? `→ Drive ${milesWord(x.d)}, about ${hrsWord(x.t)}, to ${next}${x.ferry ? ' (includes a ferry)' : ''}${st.legs[i].vias.length ? ` (via ${st.legs[i].vias.length} waypoint${st.legs[i].vias.length === 1 ? '' : 's'} you chose)` : ''}` : `→ Drive to ${next} (driving time unknown)`, italics: true, color: colHex})], {indent: {left: 720}, spacing: {before: 40}}); }
       }
     }
     const inRoute = new Set(t.route.map(s => s.pinId)); const others = t.pins.filter(p => !inRoute.has(p.id));
@@ -2050,13 +2119,13 @@ async function makeDoc(btn){
 }
 function planText(){
   const {t, st, days} = planData(); const L = [];
-  L.push(t.name.toUpperCase()); L.push(`${days.length} day${days.length === 1 ? '' : 's'} · ${t.route.length} stops · ${milesWord(st.d)} · about ${hrsWord(st.s)} of driving`);
+  L.push(t.name.toUpperCase()); L.push(`${days.length} segment${days.length === 1 ? '' : 's'} · ${t.route.length} stops · ${milesWord(st.d)} · about ${hrsWord(st.s)} of driving`);
   const lodging = lodgingTotals(t); if (lodging) L.push('Lodging: ' + lodging); L.push('');
   const shown = new Set();
   for (const d of days) {
-    if (d.kind === 'layover') { L.push(`Day ${d.n}: Layover in ${stopTown(t, d.idx[0])}${d.date ? ' (' + dayDateLong(d) + ')' : ''}`); L.push(`  No driving. Night ${d.night} of ${d.nights}.`); L.push(''); continue; }
+    if (d.kind === 'layover') { L.push(`Segment ${d.n}: Layover in ${stopTown(t, d.idx[0])}${d.date ? ' (' + dayDateLong(d) + ')' : ''}`); L.push(`  No driving. Night ${d.night} of ${d.nights}.`); L.push(''); continue; }
     const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
-    L.push(`Day ${d.n}: ${from}${from !== to ? ' to ' + to : ''}${d.date ? ' (' + dayDateLong(d) + ')' : ''}`);
+    L.push(`Segment ${d.n}: ${from}${from !== to ? ' to ' + to : ''}${d.date ? ' (' + dayDateLong(d) + ')' : ''}`);
     L.push(`  ${milesWord(d.d)} · about ${hrsWord(d.s)} of driving${d.ferry ? ' · includes a ferry' : ''}`);
     d.idx.forEach((i, k) => {
       const p = pinById(t.route[i].pinId); L.push(`  • ${p.name}${p.address ? ' — ' + p.address : pinLabel(p) ? ' (' + pinLabel(p) + ')' : ''}`);
@@ -2079,9 +2148,9 @@ async function copyText(){
    ========================================================= */
 function stepsHtml(){
   return `<div class="welcome-steps">
-    <div><span class="n" style="background:var(--pins)">1</span><span><b>Pins.</b> Drop every place you might want to see. Press <b>Add pins</b> and click the map, or search for a place. Click any pin to name it, add notes and links, and pick an icon and color.<p></p></span></div>
+    <div><span class="n" style="background:var(--pins)">1</span><span><b>Pins.</b> Drop every place you might want to see: click anywhere on the map, or search for a place. Click any pin to name it, add notes and links, and pick an icon and color.<p></p></span></div>
     <div><span class="n" style="background:var(--route)">2</span><span><b>Route.</b> Connect the dots: click pins in the order you’ll visit them. You’ll see the miles and driving time for every drive. Drag stops to change the order, or press <b>Suggest order</b>.</span></div>
-    <div><span class="n" style="background:var(--days)">3</span><span><b>Days.</b> Press <b>End day</b> on the stops where you’ll sleep, and use <b>+</b> for extra nights. Or press <b>Split into days</b> and the site suggests towns to stop in. Then export the day-by-day trip itinerary, with maps and all your stay details.</span></div></div>`;
+    <div><span class="n" style="background:var(--days)">3</span><span><b>Segments.</b> Press <b>End segment</b> on the stops where you’ll sleep, and use <b>+</b> for extra nights. Or press <b>Split into segments</b> and the site suggests towns to stop in. Then export the trip itinerary, with a map for each segment and all your stay details.</span></div></div>`;
 }
 function showWelcome(){
   modal({title: 'Welcome to Larson Family Maps', html: `<p>Plan a trip in three steps:</p>${stepsHtml()}<p>Everything saves automatically in this browser. Made a mistake? Press <i class="fa-solid fa-rotate-left"></i> Undo at the top.</p>`, buttons: [{label: 'Let’s go', kind: 'green'}]}).then(() => { prefs.seenWelcome = true; savePrefs(); });
@@ -2090,6 +2159,7 @@ function showHelp(){
   modal({title: 'How to use Larson Family Maps', wide: true, html: `${stepsHtml()}
     <h3 style="margin:18px 0 6px">Bring in a trip from Google My Maps</h3>
     <ol><li>On a computer, go to <b>google.com/maps/d</b> and open the map.</li><li>Click the <b>three dots ⋮</b> next to the map’s name.</li><li>Click <b>Export to KML/KMZ</b>.</li><li>Choose <b>Entire map</b>, then click <b>Download</b>.</li><li>Here, click <b>☰</b> (top right), then <b>Import a Google My Map</b>, and pick the file. You can also drag the file onto this page.</li></ol>
+    <h3 style="margin:18px 0 6px">Take the scenic road with waypoints</h3><p>In Step 2, press <b>Add waypoint</b>, then click a road you want to drive on. The route is forced through that spot, which shows as a small yellow <b>W</b>. Drag a W to move it, or click it to remove it. You can also search for a place and press <b>Add as a waypoint</b>.</p>
     <h3 style="margin:18px 0 6px">Measure a distance</h3><p>Click <b>Measure</b> on the map, then click two or more spots. You get the straight-line distance and the driving distance and time. Nothing is saved.</p>
     <h3 style="margin:18px 0 6px">Where your trips are saved</h3><p>Trips save in <b>this browser on this device</b>. Use <b>☰ → Download a backup</b> now and then, and keep the file somewhere safe. Clearing your browser’s website data would erase trips that aren’t backed up.</p>`,
     buttons: [{label: 'Got it', kind: 'blue'}]});
