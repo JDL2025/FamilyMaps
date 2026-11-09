@@ -1,0 +1,1613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Larson Family Maps</title>
+<meta name="theme-color" content="#0e1218">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Larson Maps">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 42'%3E%3Cpath d='M16 1C7.7 1 1 7.6 1 15.8c0 10.6 13.2 24 14.1 25a1.2 1.2 0 0 0 1.8 0C17.8 39.8 31 26.4 31 15.8 31 7.6 24.3 1 16 1z' fill='%2322c55e'/%3E%3Ccircle cx='16' cy='15.5' r='5.5' fill='%230e1218'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+:root{
+  --bg:#0e1218; --panel:#151a22; --panel2:#1c222c; --panel3:#262d3a; --line:#2e3646;
+  --text:#eef1f6; --muted:#a6b0c0; --faint:#748094;
+  --pins:#3b82f6; --route:#22c55e; --days:#f59e0b; --doc:#a855f7; --danger:#ef4444;
+  --measure:#facc15; --ferry:#38bdf8;
+  --font:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.35;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+[hidden]{display:none!important}
+#app{display:grid;grid-template-rows:auto 1fr;height:100vh;height:100dvh}
+
+/* ---------- Top bar ---------- */
+.top{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap;z-index:1200;position:relative}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;white-space:nowrap}
+.brand svg{width:22px;height:29px}
+.trip-btn{display:flex;align-items:center;gap:8px;max-width:280px;min-height:44px;padding:8px 14px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);font-weight:700}
+.trip-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trip-btn:hover{background:var(--panel3)}
+.steps{display:flex;gap:8px;margin:0 auto}
+.step{display:flex;align-items:center;gap:9px;min-height:46px;padding:8px 18px 8px 9px;border-radius:999px;border:2px solid var(--line);background:var(--panel2);font-weight:700;font-size:16px;white-space:nowrap;transition:background .15s,border-color .15s}
+.step .num{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--panel3);font-size:15px}
+.step:hover{border-color:#4a556a}
+.step[data-step=pins]{--c:var(--pins)} .step[data-step=route]{--c:var(--route)} .step[data-step=days]{--c:var(--days)}
+.step .num{color:var(--c)}
+.step.active{background:var(--c);border-color:var(--c);color:#0b0f14}
+.step.active .num{background:rgba(0,0,0,.22);color:#0b0f14}
+.top-right{display:flex;align-items:center;gap:6px}
+.icon-btn{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);display:grid;place-items:center;font-size:17px}
+.icon-btn:hover:not(:disabled){background:var(--panel3)}
+.icon-btn:disabled{opacity:.35;cursor:default}
+.save-status{font-size:14px;color:var(--muted);display:flex;align-items:center;gap:6px;padding:0 6px;white-space:nowrap}
+.save-status.ok i{color:var(--route)} .save-status.err{color:#fca5a5} .save-status.err i{color:var(--danger)}
+
+/* ---------- Main layout ---------- */
+main{display:grid;grid-template-columns:400px 1fr;min-height:0}
+#panel{position:relative;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;z-index:500}
+.panel-body{flex:1;overflow-y:auto;padding:16px 16px 40px}
+#mapwrap{position:relative;min-height:0}
+#map{position:absolute;inset:0;background:#1a1f27}
+.mob-handle{display:none}
+
+/* ---------- Generic UI ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:48px;padding:10px 18px;border-radius:12px;border:none;font-weight:700;font-size:16px;background:var(--panel3);color:var(--text);text-align:center;line-height:1.15}
+.btn:hover:not(:disabled){filter:brightness(1.1)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.big{min-height:56px;font-size:17px;width:100%}
+.btn.blue{background:var(--pins);color:#fff}
+.btn.green{background:var(--route);color:#06210f}
+.btn.amber{background:var(--days);color:#2a1700}
+.btn.purple{background:var(--doc);color:#fff}
+.btn.red{background:var(--danger);color:#fff}
+.btn.ghost{background:transparent;border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--panel2)}
+.btn.sm{min-height:40px;padding:8px 12px;font-size:15px;border-radius:10px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px}
+.hint{color:var(--muted);font-size:15px;margin:10px 0}
+.label{display:block;font-size:14px;font-weight:700;color:var(--muted);margin:18px 0 7px;text-transform:uppercase;letter-spacing:.04em}
+.input{width:100%;min-height:46px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);font-size:16px}
+.input:focus{border-color:var(--pins);outline:none;box-shadow:0 0 0 3px rgba(59,130,246,.3)}
+textarea.input{min-height:110px;resize:vertical;line-height:1.4}
+.section-title{display:flex;align-items:center;justify-content:space-between;margin:22px 0 8px}
+.section-title h3{margin:0;font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.empty{text-align:center;padding:26px 12px;color:var(--muted)}
+.empty i.big{font-size:40px;color:var(--faint);display:block;margin-bottom:12px}
+.empty b{color:var(--text);display:block;font-size:18px;margin-bottom:6px}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:13px;font-weight:700;background:var(--panel3);color:var(--muted);white-space:nowrap}
+.pill.ferry{background:rgba(56,189,248,.15);color:var(--ferry)}
+.pill.warn{background:rgba(245,158,11,.16);color:#fbbf24}
+.pill.err{background:rgba(239,68,68,.16);color:#fca5a5}
+
+/* ---------- Pins step ---------- */
+.layer{margin-top:10px;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.layer-head{display:flex;align-items:center;gap:6px;padding:6px 6px 6px 4px;background:var(--panel2)}
+.layer.active .layer-head{box-shadow:inset 4px 0 0 var(--pins)}
+.layer-head .lh-name{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;background:none;border:none;padding:6px 4px;text-align:left}
+.layer-head .lh-name b{font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.layer-head .lh-name small{font-size:13px;color:var(--muted)}
+.layer.active .lh-name small{color:#93c5fd}
+.mini-btn{width:40px;height:40px;border-radius:10px;border:none;background:transparent;color:var(--muted);display:grid;place-items:center;font-size:16px;flex:none}
+.mini-btn:hover{background:var(--panel3);color:var(--text)}
+.layer.hidden-layer .layer-pins, .layer.collapsed .layer-pins{display:none}
+.layer.hidden-layer .lh-name b{color:var(--faint);text-decoration:line-through}
+.pin-row{display:flex;align-items:center;gap:11px;width:100%;padding:9px 12px;border:none;border-top:1px solid var(--line);background:var(--panel);text-align:left;min-height:54px}
+.pin-row:hover{background:var(--panel2)}
+.pin-row.sel{background:#1d2a40}
+.dot{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:14px;background:var(--c);color:var(--fg)}
+.pin-row .txt{flex:1;min-width:0}
+.pin-row .txt b{display:block;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pin-row .txt small{display:block;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stopnum{min-width:30px;height:26px;border-radius:13px;padding:0 7px;display:grid;place-items:center;background:var(--route);color:#06210f;font-size:13px;font-weight:700}
+
+/* ---------- Route & days ---------- */
+.totals{display:flex;flex-direction:column;gap:6px;background:linear-gradient(135deg,rgba(34,197,94,.16),rgba(34,197,94,.04));border:1px solid rgba(34,197,94,.35);border-radius:14px;padding:14px}
+.totals .big-num{font-size:24px;font-weight:700}
+.totals .sub{color:var(--muted);font-size:15px}
+.totals.days{background:linear-gradient(135deg,rgba(245,158,11,.16),rgba(245,158,11,.04));border-color:rgba(245,158,11,.4)}
+.stops{list-style:none;margin:12px 0 0;padding:0}
+.stop{background:var(--panel2);border:1px solid var(--line);border-radius:12px;margin-bottom:0}
+.stop-main{display:flex;align-items:center;gap:8px;padding:8px 6px 8px 4px;min-height:56px}
+.stop .drag{width:38px;height:44px;display:grid;place-items:center;color:var(--faint);cursor:grab;touch-action:none;flex:none;border:none;background:none;font-size:17px}
+.stop .drag:active{cursor:grabbing}
+.stop .snum{width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:14px;background:var(--route);color:#06210f}
+.stop .txt{flex:1;min-width:0;cursor:pointer}
+.stop .txt b{display:block;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stop .txt small{display:block;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.leg{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;padding:8px 10px 8px 48px;font-size:14px;color:var(--muted);position:relative;min-height:40px;cursor:pointer}
+.leg:before{content:"";position:absolute;left:28px;top:0;bottom:0;border-left:3px dotted #3a4558}
+.leg .arrow{color:var(--route)}
+.leg b{color:var(--text)}
+.leg.pending{color:var(--faint)}
+.leg .retry{border:none;background:none;color:#93c5fd;text-decoration:underline;padding:0;font-size:14px}
+.sortable-ghost{opacity:.35}
+.sortable-chosen .stop-main{background:var(--panel3)}
+.day{margin-top:16px;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.day-head{padding:12px 14px;background:linear-gradient(90deg,rgba(245,158,11,.2),rgba(245,158,11,.05));border-bottom:1px solid var(--line)}
+.day-head .d1{font-size:13px;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:.05em}
+.day-head .d2{font-size:18px;font-weight:700;margin:3px 0}
+.day-head .d3{display:flex;gap:6px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:14px}
+.day .stop{border-radius:0;border:none;border-top:1px solid var(--line);background:var(--panel)}
+.day .stop:first-child{border-top:none}
+.night-btn{display:flex;align-items:center;gap:6px;min-height:40px;padding:6px 11px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:14px;font-weight:700;white-space:nowrap;flex:none}
+.night-btn:hover{border-color:var(--days);color:var(--text)}
+.night-btn.on{background:var(--days);border-color:var(--days);color:#2a1700}
+.endpoint{font-size:13px;color:var(--faint);padding-right:8px;white-space:nowrap}
+.row-inline{display:flex;gap:8px;align-items:center}
+
+/* ---------- Editor ---------- */
+.editor{position:absolute;inset:0;background:var(--panel);display:flex;flex-direction:column;z-index:5}
+.ed-top{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.ed-top h2{flex:1;margin:0;font-size:17px;color:var(--muted);text-align:center}
+.ed-body{flex:1;overflow-y:auto;padding:4px 16px 40px}
+.name-input{font-size:20px;font-weight:700;min-height:54px}
+.place-line{color:var(--muted);font-size:14px;margin-top:8px}
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.sw{width:40px;height:40px;border-radius:50%;border:3px solid transparent;background:var(--c);display:grid;place-items:center;color:var(--fg);font-size:15px;padding:0}
+.sw.on{border-color:#fff;box-shadow:0 0 0 2px var(--c)}
+.icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px}
+.ic{height:48px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);display:grid;place-items:center;font-size:19px;color:var(--muted);padding:0}
+.ic:hover{background:var(--panel3);color:var(--text)}
+.ic.on{background:var(--c);border-color:var(--c);color:var(--fg)}
+.links{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.link-row{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:4px 4px 4px 12px;min-height:48px}
+.link-row a{flex:1;min-width:0;color:#93c5fd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none}
+.link-row a:hover{text-decoration:underline}
+.ed-route{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tip{display:flex;gap:10px;align-items:flex-start;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:#bfdbfe;border-radius:12px;padding:11px 13px;font-size:15px;margin-top:20px}
+
+/* ---------- Map overlays ---------- */
+.map-search{position:absolute;top:12px;left:12px;width:min(380px,calc(100% - 24px));z-index:1000}
+.search-field{display:flex;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.search-field i{padding:0 4px 0 14px;color:var(--muted)}
+.search-field input{flex:1;min-width:0;border:none;background:transparent;min-height:50px;padding:0 10px;font-size:16px;outline:none}
+.search-field .mini-btn{margin-right:4px}
+.results{margin-top:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 10px 26px rgba(0,0,0,.45);max-height:60vh;overflow-y:auto}
+.result{display:flex;gap:12px;align-items:center;width:100%;text-align:left;padding:11px 14px;border:none;border-top:1px solid var(--line);background:none;min-height:56px}
+.result:first-child{border-top:none}
+.result:hover,.result.kb{background:var(--panel2)}
+.result i{color:var(--muted);width:18px;text-align:center}
+.result b{display:block}
+.result small{display:block;color:var(--muted);font-size:13px}
+.results .note{padding:14px;color:var(--muted)}
+.map-tools{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:8px;z-index:1000;align-items:flex-end}
+.tool{display:flex;align-items:center;gap:9px;min-height:46px;padding:0 15px;border-radius:12px;border:1px solid var(--line);background:var(--panel);font-weight:700;font-size:15px;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.tool:hover{background:var(--panel2)}
+.tool.on{background:var(--measure);border-color:var(--measure);color:#2a2000}
+.tool i{width:18px;text-align:center}
+.basemaps{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;display:grid;gap:6px;box-shadow:0 10px 26px rgba(0,0,0,.45)}
+.basemaps button{min-width:150px;min-height:44px;text-align:left;padding:0 12px;border-radius:9px;border:1px solid transparent;background:var(--panel2);font-weight:700;display:flex;align-items:center;gap:10px}
+.basemaps button.on{border-color:var(--pins);background:#1d2a40}
+.banner{position:absolute;left:50%;transform:translateX(-50%);top:76px;z-index:990;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 16px;border-radius:14px;font-weight:700;font-size:16px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:calc(100% - 24px)}
+.banner.add{background:var(--pins);color:#fff}
+.banner.route{background:var(--route);color:#06210f}
+.banner.measure{background:var(--measure);color:#2a2000}
+.banner .btn{min-height:42px;background:rgba(0,0,0,.25);color:inherit}
+.banner.route .btn,.banner.measure .btn{background:rgba(0,0,0,.14)}
+.measure-card{position:absolute;left:12px;bottom:24px;z-index:1000;width:min(340px,calc(100% - 24px));background:var(--panel);border:2px solid var(--measure);border-radius:14px;padding:14px;box-shadow:0 10px 26px rgba(0,0,0,.45)}
+.measure-card .m-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:16px}
+.measure-card .m-row span{color:var(--muted)}
+.measure-card .m-row b{font-size:18px;text-align:right}
+.toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:3000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:max-content;max-width:calc(100% - 24px)}
+.toast{pointer-events:auto;display:flex;align-items:center;gap:14px;background:#f1f5f9;color:#0f172a;border-radius:12px;padding:10px 10px 10px 16px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.5);min-height:50px}
+.toast.err{background:#fee2e2;color:#7f1d1d}
+.toast button{border:none;background:#0f172a;color:#fff;border-radius:9px;min-height:38px;padding:0 14px;font-weight:700}
+.loading-pill{display:inline-flex;align-items:center;gap:8px}
+
+/* ---------- Markers ---------- */
+.mk{position:relative;width:32px;height:42px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}
+.mk svg{position:absolute;inset:0;width:32px;height:42px}
+.mk i{position:absolute;left:0;right:0;top:8px;text-align:center;font-size:14px;color:var(--fg)}
+.mk .mk-num{position:absolute;top:-9px;right:-12px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#0b0f14;color:#86efac;border:2px solid var(--route);font:700 12px/18px var(--font);text-align:center}
+.mk.sel{transform:scale(1.25);transform-origin:50% 100%;z-index:1}
+.mk.sel:after{content:"";position:absolute;left:4px;right:4px;bottom:-5px;height:8px;border-radius:50%;background:rgba(255,255,255,.55);z-index:-1}
+.mk.dim{opacity:.55}
+.leaflet-container{font-family:var(--font)}
+.leaflet-tooltip.pin-tip{background:var(--panel);color:var(--text);border:1px solid var(--line);font-size:14px;font-weight:700;padding:5px 9px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.leaflet-tooltip.pin-tip:before{border-top-color:var(--panel)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--text);border:1px solid var(--line)}
+.leaflet-popup-content{margin:14px 16px;font-size:15px}
+.leaflet-popup-content .pp-title{font-size:17px;font-weight:700;margin-bottom:3px}
+.leaflet-popup-content .pp-sub{color:var(--muted);margin-bottom:12px}
+.leaflet-popup-content .btn{width:100%;margin-top:6px}
+.leaflet-container a.leaflet-popup-close-button{color:var(--muted);font-size:22px;width:30px;height:30px}
+.search-mk{width:26px;height:26px;border-radius:50%;background:#fff;border:6px solid var(--pins);box-shadow:0 0 0 6px rgba(59,130,246,.35)}
+.leaflet-control-attribution{background:rgba(14,18,24,.75)!important;color:#9aa4b2!important}
+.leaflet-control-attribution a{color:#bcd2f5!important}
+.leaflet-bar a{background:var(--panel)!important;color:var(--text)!important;border-color:var(--line)!important;width:40px!important;height:40px!important;line-height:40px!important;font-size:20px!important}
+.leaflet-bar{border:1px solid var(--line)!important}
+.measure-label{background:var(--measure);color:#2a2000;border:none;font-weight:700;font-size:13px;padding:3px 8px;border-radius:8px;box-shadow:none}
+.measure-label:before{display:none}
+.adding .leaflet-container,.measuring .leaflet-container{cursor:crosshair}
+.adding .leaflet-marker-icon{cursor:default}
+
+/* ---------- Menus & modals ---------- */
+.menu{position:absolute;z-index:2500;min-width:270px;max-width:calc(100vw - 20px);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 16px 40px rgba(0,0,0,.55);max-height:75vh;overflow-y:auto}
+.menu button{display:flex;align-items:center;gap:12px;width:100%;min-height:46px;padding:8px 12px;border:none;border-radius:9px;background:none;text-align:left;font-size:16px}
+.menu button:hover{background:var(--panel2)}
+.menu button i{width:20px;text-align:center;color:var(--muted)}
+.menu button.cur{color:#86efac} .menu button.cur i{color:#86efac}
+.menu button.danger, .menu button.danger i{color:#fca5a5}
+.menu hr{border:none;border-top:1px solid var(--line);margin:6px 4px}
+.menu .mh{font-size:13px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;padding:8px 12px 4px}
+.modal-back{position:fixed;inset:0;background:rgba(5,8,12,.7);z-index:4000;display:grid;place-items:center;padding:16px}
+.modal{width:min(520px,100%);max-height:calc(100dvh - 32px);overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.modal h2{margin:0 0 12px;font-size:22px}
+.modal p{color:var(--muted);margin:8px 0}
+.modal ol{padding-left:22px;margin:8px 0;color:var(--muted)} .modal ol li{margin:7px 0}
+.modal ol b{color:var(--text)}
+.modal .btn-row{margin-top:20px;justify-content:flex-end}
+.welcome-steps{display:grid;gap:10px;margin:14px 0}
+.welcome-steps div{display:flex;gap:12px;align-items:flex-start;background:var(--panel2);border-radius:12px;padding:12px}
+.welcome-steps .n{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;color:#0b0f14}
+.welcome-steps p{margin:2px 0 0;font-size:15px}
+.drop-overlay{position:fixed;inset:0;z-index:5000;background:rgba(59,130,246,.25);border:4px dashed var(--pins);display:grid;place-items:center;font-size:24px;font-weight:700;pointer-events:none}
+
+/* ---------- Phones ---------- */
+@media (max-width:820px){
+  .top{padding:8px 10px;gap:8px}
+  .brand .bt{display:none}
+  .trip-btn{flex:1;max-width:none;min-width:0}
+  .steps{order:5;width:100%;margin:0}
+  .step{flex:1;justify-content:center;padding:6px 8px;gap:6px;font-size:15px}
+  .save-status .st{display:none}
+  main{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  #mapwrap{grid-row:1}
+  #panel{grid-row:2;height:46dvh;border-right:none;border-top:1px solid var(--line);transition:height .2s}
+  #panel.collapsed{height:58px}
+  #panel.collapsed .panel-body,#panel.collapsed .editor{display:none}
+  .mob-handle{display:flex;align-items:center;justify-content:center;gap:8px;min-height:40px;border:none;background:var(--panel2);color:var(--muted);font-weight:700;font-size:14px;border-bottom:1px solid var(--line);flex:none}
+  #panel.collapsed .mob-handle{min-height:58px}
+  .map-search{width:calc(100% - 20px);left:10px;top:10px}
+  .search-field input{min-height:46px}
+  .map-tools{top:66px;right:10px;gap:6px}
+  .tool .tl{display:none}
+  .tool{padding:0;width:44px;min-height:44px;justify-content:center}
+  .leaflet-control-zoom,.leaflet-control-scale{display:none}
+  .leaflet-control-attribution{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100vw}
+  .step{min-height:42px}
+  #panel{height:42dvh}
+  .banner{top:auto;bottom:14px;font-size:15px;width:max-content}
+  .measure-card{bottom:74px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 32 42" aria-hidden="true"><path d="M16 1C7.7 1 1 7.6 1 15.8c0 10.6 13.2 24 14.1 25a1.2 1.2 0 0 0 1.8 0C17.8 39.8 31 26.4 31 15.8 31 7.6 24.3 1 16 1z" fill="#22c55e"/><circle cx="16" cy="15.5" r="5.5" fill="#0e1218"/></svg>
+      <span class="bt">Larson Family Maps</span>
+    </div>
+    <button class="trip-btn" id="tripBtn" title="Switch or manage trips"><i class="fa-solid fa-suitcase-rolling"></i><span id="tripName">Trip</span><i class="fa-solid fa-caret-down"></i></button>
+    <nav class="steps" aria-label="Steps">
+      <button class="step" data-step="pins"><span class="num">1</span>Pins</button>
+      <button class="step" data-step="route"><span class="num">2</span>Route</button>
+      <button class="step" data-step="days"><span class="num">3</span>Days</button>
+    </nav>
+    <div class="top-right">
+      <div class="save-status ok" id="saveStatus" title="Your trips save automatically in this browser"><i class="fa-solid fa-circle-check"></i><span class="st">Saved</span></div>
+      <button class="icon-btn" id="undoBtn" title="Undo (Ctrl/⌘ Z)" aria-label="Undo"><i class="fa-solid fa-rotate-left"></i></button>
+      <button class="icon-btn" id="redoBtn" title="Redo" aria-label="Redo"><i class="fa-solid fa-rotate-right"></i></button>
+      <button class="icon-btn" id="moreBtn" title="Import, export and help" aria-label="More"><i class="fa-solid fa-bars"></i></button>
+    </div>
+  </header>
+  <main>
+    <aside id="panel">
+      <button class="mob-handle" id="mobHandle"><i class="fa-solid fa-chevron-down"></i><span>Hide list</span></button>
+      <div class="panel-body" id="panelBody"></div>
+      <div class="editor" id="editor" hidden></div>
+    </aside>
+    <div id="mapwrap">
+      <div id="map"></div>
+      <div class="map-search" id="mapSearch">
+        <div class="search-field">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input id="searchInput" type="text" placeholder="Search for a place or address" autocomplete="off" enterkeyhint="search" aria-label="Search for a place">
+          <button class="mini-btn" id="searchClear" hidden aria-label="Clear search"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="results" id="searchResults" hidden></div>
+      </div>
+      <div class="map-tools">
+        <button class="tool" id="styleBtn" title="Change map style"><i class="fa-solid fa-layer-group"></i><span class="tl">Map style</span></button>
+        <div class="basemaps" id="basemapMenu" hidden></div>
+        <button class="tool" id="measureBtn" title="Measure a distance"><i class="fa-solid fa-ruler"></i><span class="tl">Measure</span></button>
+        <button class="tool" id="fitBtn" title="Zoom to show the whole trip"><i class="fa-solid fa-expand"></i><span class="tl">Show all</span></button>
+      </div>
+      <div class="banner" id="banner" hidden></div>
+      <div class="measure-card" id="measureCard" hidden></div>
+    </div>
+  </main>
+</div>
+<div class="toasts" id="toasts"></div>
+<input type="file" id="fileInput" accept=".kml,.kmz,.json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/json" hidden>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script>
+'use strict';
+/* =========================================================
+   Larson Family Maps — trip planner
+   Everything lives in this one file. Trips save in the
+   browser (localStorage). Routing: public OSRM servers.
+   Search: Photon (komoot). Map tiles: CARTO, Esri, OpenTopoMap.
+   ========================================================= */
+
+const APP_VERSION = 1;
+const STORE_KEY = 'lfm.data.v1';
+const LEGS_KEY  = 'lfm.legs.v2';
+const PREFS_KEY = 'lfm.prefs.v1';
+const VALHALLA = 'https://valhalla1.openstreetmap.de/route';
+const OSRM = ['https://router.project-osrm.org/route/v1/driving/', 'https://routing.openstreetmap.de/routed-car/route/v1/driving/'];
+const PHOTON = 'https://photon.komoot.io';
+const NOMINATIM = 'https://nominatim.openstreetmap.org';
+const DOCX_URL  = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js';
+const JSZIP_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+
+const COLORS = [
+  ['#e53935','Red'],['#fb8c00','Orange'],['#fdd835','Yellow'],['#7cb342','Lime'],['#2e9d4f','Green'],['#00897b','Teal'],
+  ['#00acc1','Aqua'],['#1e88e5','Blue'],['#3949ab','Indigo'],['#8e24aa','Purple'],['#d81b60','Pink'],['#795548','Brown'],['#78909c','Gray'],['#f5f5f5','White']
+];
+const DEFAULT_COLOR = '#1e88e5';
+const ICONS = [
+ ['location-dot','Pin'],['star','Star'],['heart','Favorite'],['flag','Flag'],['question','Maybe'],['house','Home'],['bed','Hotel'],['hotel','Lodging'],
+ ['campground','Campground'],['tent','Tent'],['caravan','RV / camper'],['fire','Campfire'],['utensils','Restaurant'],['burger','Fast food'],['pizza-slice','Pizza'],['mug-hot','Coffee'],
+ ['ice-cream','Ice cream'],['beer-mug-empty','Brewery'],['wine-glass','Winery'],['cart-shopping','Groceries'],['shop','Shop'],['gas-pump','Gas'],['plug-circle-bolt','Supercharger'],['charging-station','EV charger'],
+ ['square-parking','Parking'],['restroom','Restroom'],['shower','Shower'],['car','Car'],['ferry','Ferry'],['ship','Ship'],['anchor','Harbor'],['plane','Airport'],
+ ['train','Train'],['bus','Bus'],['route','Scenic drive'],['signs-post','Trailhead'],['person-hiking','Hike'],['person-biking','Bike'],['person-swimming','Swim'],['person-skiing','Ski'],
+ ['sailboat','Boating'],['fish','Fishing'],['mountain','Mountain'],['mountain-sun','Viewpoint'],['tree','Park / forest'],['leaf','Nature'],['water','Lake / river'],['umbrella-beach','Beach'],
+ ['binoculars','Wildlife'],['paw','Animals'],['camera','Photo spot'],['tower-observation','Lookout'],['landmark','Landmark'],['monument','Monument'],['building-columns','Museum'],['church','Church'],
+ ['city','City'],['bridge','Bridge'],['masks-theater','Show'],['music','Music'],['ticket','Tickets'],['golf-ball-tee','Golf'],['sun','Sunny spot'],['snowflake','Snow'],
+ ['gem','Hidden gem'],['circle-info','Info'],['triangle-exclamation','Caution']
+];
+const ICON_SET = new Set(ICONS.map(i => i[0]));
+const STATE_ABBR = {"Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA","Colorado":"CO","Connecticut":"CT","Delaware":"DE","Florida":"FL","Georgia":"GA","Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA","Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD","Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO","Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ","New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT","Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY","District of Columbia":"DC","Puerto Rico":"PR",
+ "Alberta":"AB","British Columbia":"BC","Manitoba":"MB","New Brunswick":"NB","Newfoundland and Labrador":"NL","Nova Scotia":"NS","Ontario":"ON","Prince Edward Island":"PE","Quebec":"QC","Québec":"QC","Saskatchewan":"SK","Northwest Territories":"NT","Nunavut":"NU","Yukon":"YT"};
+
+/* ---------- small helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-5);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const TAP = matchMedia('(pointer: coarse)').matches ? 'Tap' : 'Click';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function isLight(hex){ const h = hex.replace('#',''); const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16); return (0.299*r + 0.587*g + 0.114*b) > 170; }
+function fgFor(hex){ return isLight(hex) ? '#111' : '#fff'; }
+function haversine(a, b){ const R = 6371008.8, toR = Math.PI/180; const dLat = (b.lat-a.lat)*toR, dLng = (b.lng-a.lng)*toR; const s = Math.sin(dLat/2)**2 + Math.cos(a.lat*toR)*Math.cos(b.lat*toR)*Math.sin(dLng/2)**2; return 2*R*Math.asin(Math.min(1, Math.sqrt(s))); }
+function miles(m){ const mi = m / 1609.344; if (mi < 10) return (Math.round(mi*10)/10).toLocaleString() + ' mi'; return Math.round(mi).toLocaleString() + ' mi'; }
+function milesWord(m){ const mi = m / 1609.344; const v = mi < 10 ? Math.round(mi*10)/10 : Math.round(mi); return v.toLocaleString() + (v === 1 ? ' mile' : ' miles'); }
+function hrs(s){ const m = Math.round(s/60); if (m < 60) return m + ' min'; const h = Math.floor(m/60), r = m % 60; return r ? `${h} h ${r} min` : `${h} h`; }
+function hrsWord(s){ const m = Math.round(s/60); if (m < 60) return m + ' minutes'; const h = Math.floor(m/60), r = m % 60; return `${h} hour${h===1?'':'s'}` + (r ? ` ${r} minute${r===1?'':'s'}` : ''); }
+function normUrl(u){ u = String(u||'').trim(); if (!u) return null; if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u; try { const x = new URL(u); if (!/^https?:$/.test(x.protocol)) return null; if (!x.hostname.includes('.')) return null; return x.href; } catch { return null; } }
+function linkLabel(u){ try { const x = new URL(u); let p = (x.hostname.replace(/^www\./,'') + x.pathname).replace(/\/$/,''); return p.length > 48 ? p.slice(0,46) + '…' : p; } catch { return u; } }
+function loadScript(src){ return new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`) && (src !== DOCX_URL || window.docx) && (src !== JSZIP_URL || window.JSZip)) return res(); const s = document.createElement('script'); s.src = src; s.onload = () => res(); s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); }); }
+function download(blob, name){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 3000); }
+function safeName(s){ return String(s||'trip').replace(/[\\/:*?"<>|]+/g,'').trim().slice(0,80) || 'trip'; }
+async function fetchJSON(url, ms = 15000){ const c = new AbortController(); const t = setTimeout(() => c.abort(), ms); try { const r = await fetch(url, {signal: c.signal}); const j = await r.json().catch(() => null); return {ok: r.ok, status: r.status, json: j}; } finally { clearTimeout(t); } }
+
+/* =========================================================
+   DATA + SAVING
+   ========================================================= */
+let db = {version: APP_VERSION, trips: [], currentId: null};
+let prefs = {basemap: 'dark', step: 'pins', seenWelcome: false};
+let storageOK = true;
+
+function newTrip(name){ const lid = uid(); return {id: uid(), name: name || 'New trip', created: Date.now(), updated: Date.now(), layers: [{id: lid, name: 'Places', visible: true}], activeLayerId: lid, pins: [], route: [], startDate: '', maxDayHours: 7}; }
+function normalizeTrip(t){
+  if (!t.id) t.id = uid();
+  t.name = String(t.name || 'Untitled trip');
+  if (!Array.isArray(t.layers) || !t.layers.length) t.layers = [{id: uid(), name: 'Places', visible: true}];
+  t.layers.forEach(l => { l.id ||= uid(); l.name = String(l.name || 'Layer'); l.visible = l.visible !== false; });
+  if (!t.layers.some(l => l.id === t.activeLayerId)) t.activeLayerId = t.layers[0].id;
+  if (!Array.isArray(t.pins)) t.pins = [];
+  const lids = new Set(t.layers.map(l => l.id));
+  t.pins = t.pins.filter(p => p && isFinite(p.lat) && isFinite(p.lng));
+  t.pins.forEach(p => { p.id ||= uid(); p.name = String(p.name ?? 'Pin'); p.notes = String(p.notes || ''); p.links = Array.isArray(p.links) ? p.links.filter(l => l && l.url) : []; if (!/^#[0-9a-f]{6}$/i.test(p.color||'')) p.color = DEFAULT_COLOR; if (!ICON_SET.has(p.icon)) p.icon = 'location-dot'; if (!lids.has(p.layerId)) p.layerId = t.layers[0].id; });
+  const pids = new Set(t.pins.map(p => p.id));
+  t.route = (Array.isArray(t.route) ? t.route : []).filter(s => s && pids.has(s.pinId));
+  t.route.forEach(s => { s.sid ||= uid(); s.overnight = !!s.overnight; });
+  t.startDate = typeof t.startDate === 'string' ? t.startDate : '';
+  t.maxDayHours = clamp(Number(t.maxDayHours) || 7, 1, 20);
+  return t;
+}
+function load(){
+  try { const raw = localStorage.getItem(STORE_KEY); if (raw) { const d = JSON.parse(raw); if (d && Array.isArray(d.trips)) db = d; } } catch (e) { storageOK = false; }
+  try { const p = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null'); if (p) prefs = Object.assign(prefs, p); } catch {}
+  db.trips = (db.trips || []).filter(Boolean).map(normalizeTrip);
+  if (!db.trips.length) { const t = newTrip('My first trip'); db.trips.push(t); db.currentId = t.id; }
+  if (!db.trips.some(t => t.id === db.currentId)) db.currentId = db.trips[0].id;
+}
+const trip = () => db.trips.find(t => t.id === db.currentId);
+const pinById = id => trip().pins.find(p => p.id === id);
+const layerById = id => trip().layers.find(l => l.id === id);
+
+let saveTimer = null;
+function scheduleSave(){ setSave('saving'); clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 300); }
+function saveNow(){
+  clearTimeout(saveTimer); saveTimer = null;
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); setSave('ok'); }
+  catch (e) {
+    trimLegCache(0.4);
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); setSave('ok'); }
+    catch (e2) { setSave('err'); toast('Could not save in this browser. Use ☰ → “Download a backup” right away.', {err: true, ms: 12000}); }
+  }
+}
+function savePrefs(){ try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {} }
+function setSave(s){
+  const el = $('#saveStatus');
+  if (s === 'ok') { el.className = 'save-status ok'; el.innerHTML = '<i class="fa-solid fa-circle-check"></i><span class="st">Saved</span>'; }
+  else if (s === 'saving') { el.className = 'save-status'; el.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span class="st">Saving…</span>'; }
+  else { el.className = 'save-status err'; el.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i><span class="st">Not saved</span>'; }
+}
+window.addEventListener('pagehide', () => { if (saveTimer) saveNow(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) saveNow(); });
+window.addEventListener('storage', e => {
+  if (e.key !== STORE_KEY || !e.newValue) return;
+  try { const d = JSON.parse(e.newValue); if (!d || !Array.isArray(d.trips)) return; const cur = db.currentId; db = d; db.trips = db.trips.map(normalizeTrip); if (db.trips.some(t => t.id === cur)) db.currentId = cur; else db.currentId = db.trips[0].id; if (ui.editorPinId && !pinById(ui.editorPinId)) ui.editorPinId = null; render(); toast('Updated from another window'); } catch {}
+});
+
+/* ---------- undo / redo ---------- */
+const hist = {};
+let coalesce = null;
+function H(){ const id = db.currentId; return hist[id] ||= {undo: [], redo: []}; }
+function change(label, fn, opts = {}){
+  const t = trip(), h = H(), now = Date.now();
+  const same = opts.key && coalesce && coalesce.key === opts.key && coalesce.trip === t.id && now - coalesce.time < 5000;
+  if (!same) { h.undo.push({label, snap: JSON.stringify(t)}); if (h.undo.length > 200) h.undo.shift(); h.redo.length = 0; }
+  coalesce = opts.key ? {key: opts.key, time: now, trip: t.id} : null;
+  fn(t); t.updated = now; scheduleSave();
+  if (opts.render === 'map') { renderMap(); renderTop(); }
+  else if (opts.render !== false) render();
+  else renderTop();
+}
+function replaceTrip(obj){ const i = db.trips.findIndex(t => t.id === db.currentId); db.trips[i] = normalizeTrip(obj); if (ui.editorPinId && !pinById(ui.editorPinId)) ui.editorPinId = null; scheduleSave(); render(); }
+function undo(){ const h = H(); if (!h.undo.length) return; const e = h.undo.pop(); h.redo.push({label: e.label, snap: JSON.stringify(trip())}); coalesce = null; replaceTrip(JSON.parse(e.snap)); toast('Undid: ' + e.label); }
+function redo(){ const h = H(); if (!h.redo.length) return; const e = h.redo.pop(); h.undo.push({label: e.label, snap: JSON.stringify(trip())}); coalesce = null; replaceTrip(JSON.parse(e.snap)); toast('Redid: ' + e.label); }
+
+/* =========================================================
+   UI STATE
+   ========================================================= */
+const ui = {step: 'pins', mode: null, editorPinId: null, selectedPinId: null, filter: '', collapsed: new Set(), sorting: false, panelDirty: false};
+
+/* ---------- toasts ---------- */
+function toast(msg, o = {}){
+  const box = $('#toasts'); const el = document.createElement('div'); el.className = 'toast' + (o.err ? ' err' : '');
+  el.innerHTML = `<span>${esc(msg)}</span>`;
+  if (o.action) { const b = document.createElement('button'); b.textContent = o.action; b.onclick = () => { el.remove(); o.onAction(); }; el.appendChild(b); }
+  [...box.children].forEach(c => { if (c.firstChild && c.firstChild.textContent === msg) c.remove(); });
+  box.appendChild(el); while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => el.remove(), o.ms || (o.action ? 7000 : 3500));
+}
+function undoToast(msg){ toast(msg, {action: 'Undo', onAction: undo}); }
+
+/* ---------- modals ---------- */
+function modal({title, html, buttons = [], onOpen, wide}){
+  return new Promise(resolve => {
+    const back = document.createElement('div'); back.className = 'modal-back';
+    back.innerHTML = `<div class="modal" role="dialog" aria-modal="true" ${wide ? 'style="width:min(640px,100%)"' : ''}><h2>${esc(title)}</h2><div class="m-body">${html || ''}</div><div class="btn-row"></div></div>`;
+    const row = back.querySelector('.btn-row');
+    const close = v => { back.remove(); document.removeEventListener('keydown', onKey, true); resolve(v); };
+    buttons.forEach(b => { const el = document.createElement('button'); el.className = 'btn ' + (b.kind || 'ghost'); el.innerHTML = b.label; el.onclick = () => { const v = b.value !== undefined ? b.value : true; if (b.get) close(b.get(back)); else close(v); }; row.appendChild(el); });
+    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); close(null); } if (e.key === 'Enter' && e.target.tagName === 'INPUT') { const p = buttons.find(b => b.primary); if (p) { e.preventDefault(); close(p.get ? p.get(back) : (p.value ?? true)); } } };
+    document.addEventListener('keydown', onKey, true);
+    back.addEventListener('mousedown', e => { if (e.target === back) close(null); });
+    document.body.appendChild(back);
+    if (onOpen) onOpen(back, close);
+    const first = back.querySelector('input,textarea'); if (first) { first.focus(); first.select?.(); } else row.lastChild?.focus();
+  });
+}
+function askText(title, label, value, okLabel = 'Save'){
+  return modal({title, html: `<label class="label" style="margin-top:4px">${esc(label)}</label><input class="input" id="askInput" maxlength="120" value="${esc(value || '')}">`,
+    buttons: [{label: 'Cancel', value: null}, {label: okLabel, kind: 'blue', primary: true, get: b => b.querySelector('#askInput').value.trim() || null}]});
+}
+function askConfirm(title, message, okLabel = 'OK', danger = false){
+  return modal({title, html: `<p>${message}</p>`, buttons: [{label: 'Cancel', value: false}, {label: okLabel, kind: danger ? 'red' : 'blue', value: true}]});
+}
+
+/* ---------- menus ---------- */
+let openMenuEl = null;
+function closeMenu(){ if (openMenuEl) { openMenuEl.remove(); openMenuEl = null; } }
+function showMenu(anchor, items){
+  closeMenu();
+  const m = document.createElement('div'); m.className = 'menu';
+  items.forEach(it => {
+    if (it === '-') { m.appendChild(document.createElement('hr')); return; }
+    if (it.header) { const h = document.createElement('div'); h.className = 'mh'; h.textContent = it.header; m.appendChild(h); return; }
+    const b = document.createElement('button'); if (it.cls) b.className = it.cls;
+    b.innerHTML = `<i class="fa-solid fa-${it.icon || 'circle'}"></i><span>${esc(it.label)}</span>`;
+    b.onclick = () => { closeMenu(); it.run(); }; m.appendChild(b);
+  });
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect(); const w = m.offsetWidth;
+  let left = r.left; if (left + w > innerWidth - 10) left = innerWidth - w - 10;
+  m.style.left = Math.max(10, left) + 'px'; m.style.top = (r.bottom + 6) + 'px';
+  openMenuEl = m;
+  setTimeout(() => document.addEventListener('mousedown', function h(e){ if (!m.contains(e.target)) { closeMenu(); document.removeEventListener('mousedown', h); } }), 0);
+}
+
+/* =========================================================
+   MAP
+   ========================================================= */
+const map = L.map('map', {zoomControl: false, worldCopyJump: true, minZoom: 2}).setView([39.5, -96], 4);
+L.control.zoom({position: 'bottomright'}).addTo(map);
+L.control.scale({position: 'bottomright', metric: false}).addTo(map);
+map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
+map.attributionControl.addAttribution('Directions <a href="https://valhalla.github.io/valhalla/">Valhalla</a> (<a href="https://www.fossgis.de">FOSSGIS</a>) &amp; <a href="https://project-osrm.org">OSRM</a> · Search <a href="https://photon.komoot.io">Photon</a> &amp; <a href="https://nominatim.org">Nominatim</a>');
+const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+const esri = (path, o = {}) => L.tileLayer(ESRI + path + '/MapServer/tile/{z}/{y}/{x}', Object.assign({maxZoom: 19, attribution: 'Powered by <a href="https://www.esri.com">Esri</a>'}, o));
+const BASEMAPS = {
+  dark:      {label: 'Dark',      icon: 'moon',     make: () => [esri('Canvas/World_Dark_Gray_Base', {maxNativeZoom: 16, attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, HERE, Garmin, &copy; OpenStreetMap contributors'}), esri('Canvas/World_Dark_Gray_Reference', {maxNativeZoom: 16, attribution: ''})]},
+  streets:   {label: 'Streets',   icon: 'road',     make: () => [esri('World_Street_Map', {attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors'})]},
+  satellite: {label: 'Satellite', icon: 'earth-americas', make: () => [esri('World_Imagery', {attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, Maxar, Earthstar Geographics'}), esri('Reference/World_Transportation', {attribution: '', opacity: .8}), esri('Reference/World_Boundaries_and_Places', {attribution: ''})]},
+  terrain:   {label: 'Terrain',   icon: 'mountain', make: () => [L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {subdomains: 'abc', maxZoom: 17, attribution: OSM_ATTR + ', SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a>'})]}
+};
+let baseLayers = [];
+function setBasemap(key){
+  if (!BASEMAPS[key]) key = 'dark';
+  baseLayers.forEach(l => map.removeLayer(l)); baseLayers = BASEMAPS[key].make(); baseLayers.forEach(l => l.addTo(map));
+  prefs.basemap = key; savePrefs(); renderBasemapMenu();
+}
+function renderBasemapMenu(){
+  $('#basemapMenu').innerHTML = Object.entries(BASEMAPS).map(([k, b]) => `<button data-bm="${k}" class="${prefs.basemap === k ? 'on' : ''}"><i class="fa-solid fa-${b.icon}"></i>${b.label}</button>`).join('');
+}
+$('#styleBtn').onclick = e => { e.stopPropagation(); $('#basemapMenu').hidden = !$('#basemapMenu').hidden; };
+$('#basemapMenu').onclick = e => { const b = e.target.closest('[data-bm]'); if (b) { setBasemap(b.dataset.bm); $('#basemapMenu').hidden = true; } };
+document.addEventListener('mousedown', e => { if (!e.target.closest('#basemapMenu,#styleBtn')) $('#basemapMenu').hidden = true; });
+
+const routePane = map.createPane('routes'); routePane.style.zIndex = 420;
+const routeLayer = L.layerGroup().addTo(map);
+const measureLayer = L.layerGroup().addTo(map);
+const markers = new Map();
+const PIN_SVG = '<svg viewBox="0 0 32 42"><path d="M16 1C7.7 1 1 7.6 1 15.8c0 10.6 13.2 24 14.1 25a1.2 1.2 0 0 0 1.8 0C17.8 39.8 31 26.4 31 15.8 31 7.6 24.3 1 16 1z" fill="var(--c)" stroke="rgba(0,0,0,.45)" stroke-width="1.5"/></svg>';
+
+function stopNumbers(t){ const m = new Map(); t.route.forEach((s, i) => { if (!m.has(s.pinId)) m.set(s.pinId, []); m.get(s.pinId).push(i + 1); }); return m; }
+function markerIcon(p, nums, sel, dim){
+  const badge = nums ? `<span class="mk-num">${nums.length > 2 ? nums[0] + '+' : nums.join(',')}</span>` : '';
+  return L.divIcon({className: '', iconSize: [32, 42], iconAnchor: [16, 41], tooltipAnchor: [0, -34], popupAnchor: [0, -36],
+    html: `<div class="mk${sel ? ' sel' : ''}${dim ? ' dim' : ''}" style="--c:${p.color};--fg:${fgFor(p.color)}">${PIN_SVG}<i class="fa-solid fa-${p.icon}"></i>${badge}</div>`});
+}
+function renderMap(){
+  const t = trip(); const nums = stopNumbers(t);
+  const visible = new Set(t.layers.filter(l => l.visible).map(l => l.id));
+  const seen = new Set();
+  for (const p of t.pins) {
+    if (!visible.has(p.layerId)) continue;
+    seen.add(p.id);
+    const n = nums.get(p.id); const sel = p.id === ui.selectedPinId || p.id === ui.editorPinId;
+    const dim = ui.step === 'route' && !n && t.route.length > 0;
+    const drag = p.id === ui.editorPinId;
+    const sig = [p.lat, p.lng, p.color, p.icon, n ? n.join(',') : '', sel, dim, drag, p.name].join('|');
+    let rec = markers.get(p.id);
+    if (!rec) {
+      const m = L.marker([p.lat, p.lng], {icon: markerIcon(p, n, sel, dim), draggable: drag, autoPan: true, riseOnHover: true});
+      m.on('click', () => onPinClick(p.id));
+      m.on('dragend', () => { const ll = m.getLatLng(); change('Move pin', t => { const q = t.pins.find(x => x.id === p.id); if (q) { q.lat = +ll.lat.toFixed(6); q.lng = +ll.lng.toFixed(6); q.place = null; } }); fillPlace(p.id, true); });
+      m.bindTooltip(esc(p.name), {className: 'pin-tip', direction: 'top'});
+      m.addTo(map); rec = {m, sig}; markers.set(p.id, rec);
+    } else if (rec.sig !== sig) {
+      rec.m.setLatLng([p.lat, p.lng]); rec.m.setIcon(markerIcon(p, n, sel, dim)); rec.m.setTooltipContent(esc(p.name));
+      if (rec.m.dragging) drag ? rec.m.dragging.enable() : rec.m.dragging.disable();
+      rec.m.setZIndexOffset(sel ? 1000 : 0);
+    }
+    rec.sig = sig;
+  }
+  for (const [id, rec] of markers) if (!seen.has(id)) { map.removeLayer(rec.m); markers.delete(id); }
+  drawRoute();
+}
+let lastRouteSig = '';
+function drawRoute(){
+  const t = trip(); const legs = routeLegs(t);
+  const sig = legs.map(l => l.key + ':' + (l.info ? l.info.status : 'none')).join('|');
+  if (sig === lastRouteSig) return; lastRouteSig = sig;
+  routeLayer.clearLayers();
+  for (const l of legs) {
+    const info = l.info;
+    if (info && info.status === 'ok') {
+      for (const seg of info.segs) {
+        if (seg.c.length < 2) continue;
+        L.polyline(seg.c, {pane: 'routes', color: '#05080c', weight: 8, opacity: .55, interactive: false}).addTo(routeLayer);
+        L.polyline(seg.c, {pane: 'routes', color: seg.m === 'ferry' ? '#38bdf8' : '#22c55e', weight: seg.m === 'ferry' ? 4 : 5, dashArray: seg.m === 'ferry' ? '2 9' : null, lineCap: 'round', opacity: .95, interactive: false}).addTo(routeLayer);
+      }
+    } else if (l.a && l.b) {
+      const err = info && info.status === 'error';
+      L.polyline([[l.a.lat, l.a.lng], [l.b.lat, l.b.lng]], {pane: 'routes', color: err ? '#ef4444' : '#94a3b8', weight: 3, dashArray: '6 9', opacity: .9, interactive: false}).addTo(routeLayer);
+    }
+  }
+}
+function fitTrip(){
+  const t = trip(); const vis = new Set(t.layers.filter(l => l.visible).map(l => l.id));
+  const pts = t.pins.filter(p => vis.has(p.layerId)).map(p => [p.lat, p.lng]);
+  if (!pts.length) { map.setView([39.5, -96], 4); toast('No pins yet. Press “Add pins” to start.'); return; }
+  if (pts.length === 1) map.setView(pts[0], 11); else map.fitBounds(pts, {padding: [60, 60], maxZoom: 13});
+}
+$('#fitBtn').onclick = fitTrip;
+function fitRoute(){ const t = trip(); const pts = t.route.map(s => pinById(s.pinId)).filter(Boolean).map(p => [p.lat, p.lng]); if (pts.length > 1) map.fitBounds(pts, {padding: [60, 60], maxZoom: 12}); }
+function flyToPin(p){ const z = Math.max(map.getZoom(), 9); map.flyTo([p.lat, p.lng], z, {duration: .6}); }
+
+/* ---------- map clicks ---------- */
+map.on('click', e => {
+  if (ui.mode === 'add') addPinAt(e.latlng);
+  else if (ui.mode === 'measure') addMeasurePoint(e.latlng);
+});
+function onPinClick(id){
+  const p = pinById(id); if (!p) return;
+  if (ui.mode === 'measure') { addMeasurePoint(L.latLng(p.lat, p.lng)); return; }
+  if (ui.mode === 'add') { markers.get(id)?.m.openTooltip(); return; }
+  if (ui.step === 'route') { addToRoute(id); return; }
+  openEditor(id, false);
+}
+
+/* =========================================================
+   PINS
+   ========================================================= */
+function addPinAt(ll, opts = {}){
+  const t = trip(); const id = uid();
+  const p = {id, name: opts.name || 'New pin', lat: +ll.lat.toFixed(6), lng: +ll.lng.toFixed(6), color: opts.color || lastStyle.color, icon: opts.icon || lastStyle.icon, notes: '', links: [], layerId: t.activeLayerId, place: opts.place || null, autoName: !opts.name};
+  const layer = layerById(t.activeLayerId); if (layer && !layer.visible) layer.visible = true;
+  change('Add pin', t => { t.pins.push(p); if (opts.toRoute) t.route.push({sid: uid(), pinId: id, overnight: false}); });
+  if (!p.place) fillPlace(id);
+  if (!opts.quiet) undoToast(opts.toRoute ? 'Pin added to the route' : 'Pin added');
+  return p;
+}
+const lastStyle = {color: DEFAULT_COLOR, icon: 'location-dot'};
+
+/* reverse geocoding (Nominatim, city level) – fills "City, ST" for pins */
+const placeQueue = []; let placeBusy = false; const placeTried = new Set();
+function fillPlace(id, force){ if (!force && placeTried.has(id)) return; placeTried.add(id); placeQueue.push(id); runPlaceQueue(); }
+async function runPlaceQueue(){
+  if (placeBusy) return; placeBusy = true;
+  while (placeQueue.length) {
+    const id = placeQueue.shift(); const t = trip(); const p = t.pins.find(x => x.id === id); if (!p) continue;
+    try {
+      const r = await fetchJSON(`${NOMINATIM}/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lng}&zoom=10&addressdetails=1&accept-language=en`, 10000);
+      if (!r.ok && r.status !== 404) throw new Error('reverse ' + r.status);
+      const a = (r.json && r.json.address) || {};
+      const place = {city: a.city || a.town || a.village || a.hamlet || a.municipality || a.county || '', state: a.state || a.province || a.region || '', country: a.country || '', cc: (a.country_code || '').toUpperCase()};
+      const q = trip().pins.find(x => x.id === id);
+      if (q) { q.place = place; if (q.autoName && q.name === 'New pin' && placeShort(place)) q.name = placeShort(place); scheduleSave(); renderMap(); if (!ui.editorPinId || ui.editorPinId === id) renderPanelSoft(); }
+    } catch (e) { /* offline: leave blank, will retry later */ placeTried.delete(id); }
+    await sleep(1100);
+  }
+  placeBusy = false;
+}
+function photonPlace(pr){
+  const placeTypes = ['city','town','village','hamlet','municipality','locality'];
+  let city = (pr.osm_key === 'place' && placeTypes.includes(pr.osm_value)) ? pr.name : (pr.city || pr.town || pr.village || pr.district || pr.locality || '');
+  if (!city && pr.county) city = pr.county;
+  return {city: city || '', state: pr.state || '', country: pr.country || '', cc: (pr.countrycode || '').toUpperCase()};
+}
+function placeShort(pl){
+  if (!pl) return '';
+  const st = pl.state ? (STATE_ABBR[pl.state] || pl.state) : '';
+  if (pl.cc === 'US' || pl.cc === 'CA') return [pl.city, st].filter(Boolean).join(', ') || pl.country || '';
+  return [pl.city || pl.state, pl.country].filter(Boolean).join(', ');
+}
+function pinPlace(p){ return placeShort(p.place); }
+function pinLabel(p){ const pl = pinPlace(p); return pl && pl !== p.name ? pl : ''; }
+
+function deletePin(id){
+  const p = pinById(id); if (!p) return;
+  change('Delete pin', t => { t.pins = t.pins.filter(x => x.id !== id); t.route = t.route.filter(s => s.pinId !== id); });
+  if (ui.editorPinId === id) closeEditor();
+  undoToast(`Deleted “${p.name}”`);
+}
+
+/* =========================================================
+   ROUTING (OSRM) — leg by leg, unlimited stops
+   ========================================================= */
+const legCache = new Map();   // key -> {status:'ok'|'pending'|'error', d, t, segs:[{m,c}], ferry:{d,t}|null, err, used}
+function legKey(a, b){ return `${a.lat.toFixed(5)},${a.lng.toFixed(5)}>${b.lat.toFixed(5)},${b.lng.toFixed(5)}`; }
+(function loadLegs(){ try { const arr = JSON.parse(localStorage.getItem(LEGS_KEY) || '[]'); arr.forEach(([k, v]) => { v.status = 'ok'; legCache.set(k, v); }); } catch {} })();
+let legSaveTimer = null;
+function saveLegsSoon(){ clearTimeout(legSaveTimer); legSaveTimer = setTimeout(saveLegs, 1500); }
+function saveLegs(){
+  let ok = [...legCache.entries()].filter(([, v]) => v.status === 'ok').sort((a, b) => (b[1].used || 0) - (a[1].used || 0)).slice(0, 500);
+  for (let tries = 0; tries < 4; tries++) {
+    try { localStorage.setItem(LEGS_KEY, JSON.stringify(ok.map(([k, v]) => [k, {d: v.d, t: v.t, segs: v.segs, ferry: v.ferry, used: v.used}]))); return; }
+    catch { ok = ok.slice(0, Math.floor(ok.length / 2)); }
+  }
+}
+function trimLegCache(frac){ try { const arr = JSON.parse(localStorage.getItem(LEGS_KEY) || '[]'); localStorage.setItem(LEGS_KEY, JSON.stringify(arr.slice(0, Math.floor(arr.length * frac)))); } catch { try { localStorage.removeItem(LEGS_KEY); } catch {} } }
+
+function routeLegs(t){
+  const legs = [];
+  for (let i = 0; i < t.route.length - 1; i++) {
+    const a = t.pins.find(p => p.id === t.route[i].pinId), b = t.pins.find(p => p.id === t.route[i + 1].pinId);
+    if (!a || !b) { legs.push({i, a, b, key: null, info: null}); continue; }
+    const key = legKey(a, b); legs.push({i, a, b, key, info: legCache.get(key) || null});
+  }
+  return legs;
+}
+function routeStats(t){
+  const legs = routeLegs(t); let d = 0, s = 0, missing = 0, pending = 0, errors = 0, ferries = 0;
+  for (const l of legs) { const x = l.info; if (x && x.status === 'ok') { d += x.d; s += x.t; if (x.ferry) ferries++; } else { missing++; if (x && x.status === 'error') errors++; else pending++; } }
+  return {legs, d, s, missing, pending, errors, ferries};
+}
+function simplify(pts, tol){
+  if (pts.length < 3) return pts;
+  const sq = tol * tol, keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [s, e] = stack.pop(); let max = 0, idx = -1; const [ax, ay] = pts[s], [bx, by] = pts[e]; const dx = bx - ax, dy = by - ay, L2 = dx*dx + dy*dy;
+    for (let i = s + 1; i < e; i++) { const [px, py] = pts[i]; let tt = L2 ? ((px-ax)*dx + (py-ay)*dy) / L2 : 0; tt = clamp(tt, 0, 1); const qx = ax + tt*dx - px, qy = ay + tt*dy - py; const d2 = qx*qx + qy*qy; if (d2 > max) { max = d2; idx = i; } }
+    if (max > sq && idx > 0) { keep[idx] = 1; stack.push([s, idx], [idx, e]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+function parseLeg(leg){
+  const segs = []; let ferry = null;
+  for (const st of leg.steps || []) {
+    const m = st.mode === 'ferry' ? 'ferry' : 'drive';
+    if (m === 'ferry') { ferry ||= {d: 0, t: 0}; ferry.d += st.distance; ferry.t += st.duration; }
+    const c = (st.geometry && st.geometry.coordinates || []).map(([x, y]) => [+y.toFixed(5), +x.toFixed(5)]);
+    if (!c.length) continue;
+    const last = segs[segs.length - 1];
+    if (last && last.m === m) { last.c.push(...c.slice(1)); } else { if (last) c.unshift(last.c[last.c.length - 1]); segs.push({m, c}); }
+  }
+  segs.forEach(s => s.c = simplify(s.c, 0.00035));
+  return {status: 'ok', d: leg.distance, t: leg.duration, segs, ferry, used: Date.now()};
+}
+const routeQueue = []; let routeBusy = false; let lastRouteReq = 0;
+function ensureRoute(){
+  const t = trip(); const legs = routeLegs(t); let chunk = null; const chunks = [];
+  for (const l of legs) {
+    if (!l.key) continue;
+    if (l.info && l.info.status !== 'error') { if (l.info.status === 'ok') l.info.used = Date.now(); chunk = null; continue; }
+    if (l.info && l.info.status === 'error' && !(l.info.kind === 'network' && Date.now() - l.info.at > 20000)) { chunk = null; continue; }
+    if (l.a.lat === l.b.lat && l.a.lng === l.b.lng) { legCache.set(l.key, {status: 'ok', d: 0, t: 0, segs: [], ferry: null, used: Date.now()}); chunk = null; continue; }
+    legCache.set(l.key, {status: 'pending'});
+    const crow = haversine(l.a, l.b);
+    if (!chunk || chunk.legs.length >= 9 || chunk.lastIndex !== l.i - 1 || chunk.crow + crow > 1350000) { chunk = {pts: [l.a], legs: [], lastIndex: l.i, crow: 0}; chunks.push(chunk); }
+    chunk.pts.push(l.b); chunk.legs.push(l.key); chunk.lastIndex = l.i; chunk.crow += crow;
+  }
+  chunks.forEach(c => routeQueue.push({pts: c.pts.map(p => ({lat: p.lat, lng: p.lng})), keys: c.legs}));
+  runRouteQueue();
+}
+async function runRouteQueue(){
+  if (routeBusy) return; routeBusy = true;
+  while (routeQueue.length) {
+    const job = routeQueue.shift();
+    const wait = 1100 - (Date.now() - lastRouteReq); if (wait > 0) await sleep(wait);
+    lastRouteReq = Date.now();
+    const res = await getRoute(job.pts);
+    if (res.ok) { res.legs.forEach((lg, i) => legCache.set(job.keys[i], lg)); saveLegsSoon(); }
+    else if ((res.code === 'NoRoute' || res.code === 'NoSegment') && job.keys.length > 1) {
+      for (let i = job.keys.length - 1; i >= 0; i--) routeQueue.unshift({pts: [job.pts[i], job.pts[i + 1]], keys: [job.keys[i]]});
+    } else {
+      const msg = res.code === 'NoRoute' ? 'No driving route found between these stops — maybe water with no car ferry.' : res.code === 'NoSegment' ? 'One of these pins is too far from any road.' : 'Couldn’t reach the directions service. Check your internet connection.';
+      job.keys.forEach(k => legCache.set(k, {status: 'error', err: msg, kind: res.code || 'network', at: Date.now()}));
+    }
+    routeUpdated();
+  }
+  routeBusy = false;
+}
+/* getRoute: Valhalla first (better drive times), OSRM as a backup.
+   Returns {ok:true, legs:[{status,d,t,segs,ferry}]} or {ok:false, code:'NoRoute'|'NoSegment'|'network'} */
+async function getRoute(pts){
+  let crow = 0; for (let i = 1; i < pts.length; i++) crow += haversine(pts[i - 1], pts[i]);
+  if (pts.length <= 10 && crow < 1400000) {
+    const v = await valhallaRoute(pts);
+    if (v.ok) return v;
+    if ((v.code === 'NoRoute' || v.code === 'NoSegment') && pts.length > 2) return v;   // caller splits into single drives
+    await sleep(500);
+    const o = await osrmRoute(pts);
+    if (o.ok || v.code === 'network') return o;
+    return o.code === 'network' ? v : o;
+  }
+  return osrmRoute(pts);
+}
+function decode6(str){
+  let i = 0, lat = 0, lng = 0; const out = [];
+  while (i < str.length) {
+    let b, shift = 0, res = 0; do { b = str.charCodeAt(i++) - 63; res |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20); lat += (res & 1) ? ~(res >> 1) : (res >> 1);
+    shift = 0; res = 0; do { b = str.charCodeAt(i++) - 63; res |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20); lng += (res & 1) ? ~(res >> 1) : (res >> 1);
+    out.push([+(lat / 1e6).toFixed(5), +(lng / 1e6).toFixed(5)]);
+  }
+  return out;
+}
+async function valhallaRoute(pts){
+  const body = {locations: pts.map(p => ({lat: +p.lat.toFixed(6), lon: +p.lng.toFixed(6), type: 'break'})), costing: 'auto', units: 'kilometers', directions_type: 'maneuvers'};
+  try {
+    const r = await fetchJSON(VALHALLA + '?json=' + encodeURIComponent(JSON.stringify(body)), 25000);
+    const j = r.json;
+    if (j && j.trip && j.trip.legs) return {ok: true, legs: j.trip.legs.map(parseValhallaLeg)};
+    if (j && (j.error_code === 442 || j.error_code === 443)) return {ok: false, code: 'NoRoute'};
+    if (j && (j.error_code === 171 || j.error_code === 170)) return {ok: false, code: 'NoSegment'};
+  } catch (e) {}
+  return {ok: false, code: 'network'};
+}
+function parseValhallaLeg(leg){
+  const shape = decode6(leg.shape || ''); const segs = []; let ferry = null; let cur = 0;
+  const push = (m, a, b) => { if (b <= a) return; const c = shape.slice(a, b + 1); const last = segs[segs.length - 1]; if (last && last.m === m) last.c.push(...c.slice(1)); else segs.push({m, c}); };
+  for (const mv of leg.maneuvers || []) {
+    if (mv.type !== 28 && mv.travel_type !== 'ferry') continue;
+    ferry ||= {d: 0, t: 0}; ferry.d += (mv.length || 0) * 1000; ferry.t += mv.time || 0;
+    push('drive', cur, mv.begin_shape_index); push('ferry', mv.begin_shape_index, mv.end_shape_index); cur = mv.end_shape_index;
+  }
+  push('drive', cur, shape.length - 1);
+  segs.forEach(s => s.c = simplify(s.c, 0.00035));
+  return {status: 'ok', d: (leg.summary.length || 0) * 1000, t: leg.summary.time || 0, segs, ferry, used: Date.now()};
+}
+async function osrmRoute(pts){
+  const coords = pts.map(p => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`).join(';');
+  for (const server of OSRM) {
+    try {
+      const r = await fetchJSON(server + coords + '?overview=false&steps=true&geometries=geojson', 25000);
+      const j = r.json;
+      if (j && j.code === 'Ok' && j.routes && j.routes[0]) return {ok: true, legs: j.routes[0].legs.map(parseLeg)};
+      if (j && (j.code === 'NoRoute' || j.code === 'NoSegment')) return {ok: false, code: j.code};
+    } catch (e) { /* try next server */ }
+    await sleep(400);
+  }
+  return {ok: false, code: 'network'};
+}
+let routeRenderTimer = null;
+function routeUpdated(){ clearTimeout(routeRenderTimer); routeRenderTimer = setTimeout(() => { drawRoute(); if (ui.step !== 'pins') renderPanelSoft(); }, 120); }
+function retryErrors(){ const t = trip(); routeLegs(t).forEach(l => { if (l.info && l.info.status === 'error') legCache.delete(l.key); }); lastRouteSig = ''; ensureRoute(); renderPanelSoft(); drawRoute(); }
+
+/* ---------- route editing ---------- */
+function addToRoute(pinId, again){
+  const t = trip(); const p = pinById(pinId); if (!p) return;
+  const nums = stopNumbers(t).get(pinId);
+  if (nums && !again) {
+    toast(`“${p.name}” is already stop #${nums.join(', #')}.`, {action: 'Add again', onAction: () => addToRoute(pinId, true)});
+    return;
+  }
+  change('Add stop', t => t.route.push({sid: uid(), pinId, overnight: false}));
+  toast(`Stop #${trip().route.length}: ${p.name}`, {action: 'Undo', onAction: undo});
+}
+function removeStop(sid){ change('Remove stop', t => { t.route = t.route.filter(s => s.sid !== sid); }); undoToast('Stop removed from the route'); }
+function addAllPins(){
+  const t = trip(); const vis = new Set(t.layers.filter(l => l.visible).map(l => l.id));
+  const inRoute = new Set(t.route.map(s => s.pinId));
+  let rest = t.pins.filter(p => vis.has(p.layerId) && !inRoute.has(p.id));
+  if (!rest.length) { toast('Every pin is already in the route.'); return; }
+  const order = []; let cur = t.route.length ? pinById(t.route[t.route.length - 1].pinId) : rest[0];
+  if (!t.route.length) { order.push(rest[0]); rest = rest.slice(1); }
+  while (rest.length) { let bi = 0, bd = Infinity; rest.forEach((p, i) => { const d = haversine(cur, p); if (d < bd) { bd = d; bi = i; } }); cur = rest[bi]; order.push(cur); rest.splice(bi, 1); }
+  change('Add all pins', t => order.forEach(p => t.route.push({sid: uid(), pinId: p.id, overnight: false})));
+  fitRoute();
+  undoToast(`Added ${order.length} stop${order.length === 1 ? '' : 's'}. Try “Suggest order” next.`);
+}
+function suggestOrder(){
+  const t = trip(); const n = t.route.length;
+  if (n < 4) { toast('Add at least 4 stops first. The first and last stops stay where they are.'); return; }
+  const pts = t.route.map(s => pinById(s.pinId));
+  const D = []; for (let i = 0; i < n; i++) { D.push(new Float64Array(n)); for (let j = 0; j < n; j++) D[i][j] = i === j ? 0 : haversine(pts[i], pts[j]); }
+  const len = path => { let s = 0; for (let i = 0; i < path.length - 1; i++) s += D[path[i]][path[i + 1]]; return s; };
+  const orig = [...Array(n).keys()]; const oldLen = len(orig);
+  // nearest neighbour from the first stop, last stop fixed
+  const rest = orig.slice(1, n - 1); const path = [0]; let cur = 0;
+  while (rest.length) { let bi = 0; rest.forEach((x, i) => { if (D[cur][x] < D[cur][rest[bi]]) bi = i; }); cur = rest.splice(bi, 1)[0]; path.push(cur); }
+  path.push(n - 1);
+  const twoOpt = p => { let improved = true, passes = 0; while (improved && passes++ < 60) { improved = false; for (let i = 1; i < n - 2; i++) for (let k = i + 1; k < n - 1; k++) { const delta = D[p[i-1]][p[k]] + D[p[i]][p[k+1]] - D[p[i-1]][p[i]] - D[p[k]][p[k+1]]; if (delta < -1e-6) { p.splice(i, k - i + 1, ...p.slice(i, k + 1).reverse()); improved = true; } } } return p; };
+  const a = twoOpt(path), b = twoOpt([...orig]);
+  const best = len(a) <= len(b) ? a : b; const newLen = len(best);
+  if (newLen >= oldLen - 1000) { toast('Your order is already about as short as it gets.'); return; }
+  change('Suggest order', t => { const r = t.route; t.route = best.map(i => r[i]); });
+  undoToast(`New order saves about ${milesWord(oldLen - newLen)} (straight-line estimate).`);
+}
+function reverseRoute(){ if (trip().route.length < 2) return; change('Reverse route', t => t.route.reverse()); undoToast('Route reversed'); }
+async function clearRoute(){ if (!trip().route.length) return; if (!await askConfirm('Clear the route?', 'This removes every stop from the route. <b>Your pins stay on the map.</b>', 'Clear route', true)) return; change('Clear route', t => t.route = []); undoToast('Route cleared'); }
+
+/* ---------- days ---------- */
+function computeDays(t, stats){
+  const n = t.route.length; if (!n) return [];
+  const days = []; let cur = [0];
+  for (let i = 1; i < n; i++) { cur.push(i); if (t.route[i].overnight && i < n - 1) { days.push(cur); cur = [i]; } }
+  days.push(cur);
+  return days.map((idx, k) => {
+    let d = 0, s = 0, missing = 0, ferry = null;
+    for (let j = idx[0]; j < idx[idx.length - 1]; j++) { const l = stats.legs[j]; if (l && l.info && l.info.status === 'ok') { d += l.info.d; s += l.info.t; if (l.info.ferry) { ferry ||= {d: 0, t: 0}; ferry.d += l.info.ferry.d; ferry.t += l.info.ferry.t; } } else missing++; }
+    let date = null; if (t.startDate) { const dt = new Date(t.startDate + 'T12:00:00'); if (!isNaN(dt)) { dt.setDate(dt.getDate() + k); date = dt; } }
+    return {n: k + 1, idx, d, s, missing, ferry, date};
+  });
+}
+function stopTitle(t, i){ const p = pinById(t.route[i].pinId); return p ? p.name : '?'; }
+function stopTown(t, i){ const p = pinById(t.route[i].pinId); if (!p) return '?'; return pinPlace(p) || p.name; }
+function suggestDays(){
+  const t = trip(); const st = routeStats(t);
+  if (t.route.length < 3) { toast('Add at least 3 stops to the route first.'); return; }
+  if (st.missing) { toast('Wait until all the driving times are loaded, then try again.'); return; }
+  const max = t.maxDayHours * 3600; let acc = 0; const nights = new Set();
+  st.legs.forEach((l, i) => { const tt = l.info.t; if (acc > 0 && acc + tt > max) { nights.add(i); acc = 0; } acc += tt; });
+  change('Suggest days', t => t.route.forEach((s, i) => s.overnight = nights.has(i)));
+  undoToast(`Split into ${nights.size + 1} day${nights.size ? 's' : ''} of up to about ${t.maxDayHours} hours of driving.`);
+}
+
+/* =========================================================
+   PANEL RENDERING
+   ========================================================= */
+function render(){ renderTop(); renderMap(); renderPanel(); }
+function renderTop(){
+  const t = trip(); $('#tripName').textContent = t.name;
+  document.querySelectorAll('.step').forEach(b => b.classList.toggle('active', b.dataset.step === ui.step));
+  const h = H(); $('#undoBtn').disabled = !h.undo.length; $('#redoBtn').disabled = !h.redo.length;
+  $('#undoBtn').title = h.undo.length ? `Undo: ${h.undo[h.undo.length - 1].label}` : 'Nothing to undo';
+  $('#redoBtn').title = h.redo.length ? `Redo: ${h.redo[h.redo.length - 1].label}` : 'Nothing to redo';
+  renderBanner();
+}
+function renderPanelSoft(){
+  if (ui.sorting) { ui.panelDirty = true; return; }
+  if (ui.editorPinId) { ui.panelDirty = true; renderEditorPlaceOnly(); return; }
+  if (ui.step === 'pins' && $('#layerList')) { const t = trip(); $('#layerList').innerHTML = layersHtml(t, stopNumbers(t), ui.filter.trim().toLowerCase()); return; }
+  const a = document.activeElement; if (a && $('#panelBody').contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) { ui.panelDirty = true; return; }
+  renderPanel();
+}
+document.addEventListener('focusout', e => { if (ui.panelDirty && !ui.editorPinId && !ui.sorting && $('#panelBody').contains(e.target)) setTimeout(() => { if (ui.panelDirty && !$('#panelBody').contains(document.activeElement)) { ui.panelDirty = false; renderPanel(); } }, 50); });
+function renderPanel(){
+  if (ui.sorting) { ui.panelDirty = true; return; }
+  ui.panelDirty = false;
+  const body = $('#panelBody'); const top = body.scrollTop;
+  if (ui.step === 'pins') body.innerHTML = pinsView();
+  else if (ui.step === 'route') body.innerHTML = routeView();
+  else body.innerHTML = daysView();
+  body.scrollTop = top;
+  if (ui.step === 'route') setupSortable();
+  ensureRoute();
+  if (ui.step === 'days') fillRoutePlaces();
+  renderEditor();
+}
+
+/* ---- Step 1: pins ---- */
+function pinsView(){
+  const t = trip(); const nums = stopNumbers(t);
+  const f = ui.filter.trim().toLowerCase();
+  let html = `<button class="btn big blue" data-act="add-mode"><i class="fa-solid fa-${ui.mode === 'add' ? 'check' : 'plus'}"></i>${ui.mode === 'add' ? 'Done adding pins' : 'Add pins'}</button>`;
+  if (!t.pins.length) {
+    return html + `<div class="empty"><i class="fa-solid fa-map-location-dot big"></i><b>Step 1: Drop your pins</b>Put down every place you might want to see. Don’t worry about the order yet.<br><br>Press <b style="display:inline;font-size:inherit;color:var(--pins)">Add pins</b>, then click the map. Or search for a place in the box on the map.</div>
+      <button class="btn big ghost" data-act="import"><i class="fa-solid fa-file-import"></i>Import a Google My Map</button>`;
+  }
+  html += `<div class="section-title"><h3>${t.pins.length} pin${t.pins.length === 1 ? '' : 's'}</h3><button class="btn sm ghost" data-act="new-layer"><i class="fa-solid fa-plus"></i>New layer</button></div>`;
+  html += `<input class="input" id="pinFilter" type="search" placeholder="Find a pin by name or notes" value="${esc(ui.filter)}" aria-label="Find a pin">`;
+  html += `<div id="layerList">${layersHtml(t, nums, f)}</div>`;
+  return html;
+}
+function layersHtml(t, nums, f){
+  let html = ''; let any = false;
+  for (const l of t.layers) {
+    const pins = t.pins.filter(p => p.layerId === l.id && (!f || (p.name + ' ' + p.notes + ' ' + pinPlace(p)).toLowerCase().includes(f)));
+    if (f && !pins.length) continue; any = true;
+    const active = l.id === t.activeLayerId; const total = t.pins.filter(p => p.layerId === l.id).length;
+    const collapsed = ui.collapsed.has(l.id) && !f;
+    html += `<div class="layer${active ? ' active' : ''}${l.visible ? '' : ' hidden-layer'}${collapsed ? ' collapsed' : ''}">
+      <div class="layer-head">
+        <button class="mini-btn" data-act="toggle-collapse" data-id="${l.id}" title="${collapsed ? 'Expand' : 'Collapse'}"><i class="fa-solid fa-chevron-${collapsed ? 'right' : 'down'}"></i></button>
+        <button class="lh-name" data-act="set-active-layer" data-id="${l.id}" title="New pins go into the highlighted layer"><b>${esc(l.name)}</b><small>${total} pin${total === 1 ? '' : 's'}${active ? ' · new pins go here' : ''}</small></button>
+        <button class="mini-btn" data-act="toggle-layer" data-id="${l.id}" title="${l.visible ? 'Hide on map' : 'Show on map'}"><i class="fa-solid fa-eye${l.visible ? '' : '-slash'}"></i></button>
+        <button class="mini-btn" data-act="layer-menu" data-id="${l.id}" title="Rename or delete layer"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+      </div><div class="layer-pins">`;
+    for (const p of pins) {
+      const n = nums.get(p.id);
+      html += `<button class="pin-row${p.id === ui.selectedPinId ? ' sel' : ''}" data-act="open-pin" data-id="${p.id}"><span class="dot" style="--c:${p.color};--fg:${fgFor(p.color)}"><i class="fa-solid fa-${p.icon}"></i></span><span class="txt"><b>${esc(p.name)}</b>${pinLabel(p) ? `<small>${esc(pinLabel(p))}</small>` : ''}</span>${n ? `<span class="stopnum" title="Stop number in the route">#${n[0]}</span>` : ''}</button>`;
+    }
+    if (!pins.length) html += `<div class="hint" style="padding:6px 14px;margin:0;border-top:1px solid var(--line)">No pins in this layer yet.</div>`;
+    html += `</div></div>`;
+  }
+  if (!any) html = `<div class="empty">No pins match “${esc(f)}”.</div>`;
+  return html;
+}
+
+/* ---- Step 2: route ---- */
+function legHtml(l, t){
+  if (!l) return '';
+  const x = l.info;
+  if (!x || x.status === 'pending') return `<div class="leg pending"><span class="loading-pill"><i class="fa-solid fa-circle-notch fa-spin"></i>Finding the drive…</span></div>`;
+  if (x.status === 'error') return `<div class="leg"><span class="pill err"><i class="fa-solid fa-triangle-exclamation"></i>${esc(x.err)}</span>${x.kind === 'network' ? '<button class="retry" data-act="retry">Try again</button>' : ''}</div>`;
+  if (x.d === 0) return `<div class="leg" data-act="zoom-leg" data-i="${l.i}"><span class="arrow"><i class="fa-solid fa-arrow-down"></i></span>Same place</div>`;
+  return `<div class="leg" data-act="zoom-leg" data-i="${l.i}" title="Show this drive on the map"><span class="arrow"><i class="fa-solid fa-arrow-down"></i></span><b>${miles(x.d)}</b> · ${hrs(x.t)}${x.ferry ? `<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry ${miles(x.ferry.d)} · ${hrs(x.ferry.t)}</span>` : ''}</div>`;
+}
+function totalsHtml(st, n, extra = ''){
+  let status = '';
+  if (st.pending) status = `<div class="sub"><span class="loading-pill"><i class="fa-solid fa-circle-notch fa-spin"></i>Getting driving directions… ${st.legs.length - st.pending} of ${st.legs.length} drives done</span></div>`;
+  else if (st.errors) status = `<div class="sub" style="color:#fca5a5"><i class="fa-solid fa-triangle-exclamation"></i> ${st.errors} drive${st.errors === 1 ? '' : 's'} couldn’t be found and ${st.errors === 1 ? 'is' : 'are'} not counted.</div>`;
+  return `<div class="totals${extra}"><div class="big-num">${miles(st.d)} · ${hrs(st.s)}</div><div class="sub">${n} stops · total driving${st.ferries ? ` · includes ${st.ferries} ferry crossing${st.ferries === 1 ? '' : 's'}` : ''}</div>${status}</div>`;
+}
+function routeView(){
+  const t = trip(); const n = t.route.length;
+  if (!t.pins.length) return `<div class="empty"><i class="fa-solid fa-route big"></i><b>Step 2: Connect the dots</b>You need some pins first.</div><button class="btn big blue" data-act="go" data-step="pins"><i class="fa-solid fa-arrow-left"></i>Go to Step 1: Pins</button>`;
+  const st = routeStats(t);
+  let html = '';
+  if (n) html += totalsHtml(st, n);
+  const inRoute = new Set(t.route.map(s => s.pinId)); const notIn = t.pins.filter(p => !inRoute.has(p.id)).length;
+  html += `<p class="hint">${n ? TAP + ' more pins on the map to add them to the end. Drag <i class="fa-solid fa-grip-lines"></i> to change the order.' : `<b style="color:var(--text)">${TAP} your pins on the map in the order you want to visit them.</b> The first pin you ${TAP.toLowerCase()} becomes stop #1.`}</p>`;
+  html += `<div class="btn-grid">
+    <button class="btn sm ghost" data-act="add-all" ${notIn ? '' : 'disabled'}><i class="fa-solid fa-circle-plus"></i>Add all pins${notIn ? ` (${notIn})` : ''}</button>
+    <button class="btn sm ghost" data-act="suggest" ${n >= 4 ? '' : 'disabled'} title="Reorders the stops between the first and last to make the drive shorter"><i class="fa-solid fa-wand-magic-sparkles"></i>Suggest order</button>
+    <button class="btn sm ghost" data-act="reverse" ${n >= 2 ? '' : 'disabled'}><i class="fa-solid fa-arrow-right-arrow-left"></i>Reverse</button>
+    <button class="btn sm ghost" data-act="clear-route" ${n ? '' : 'disabled'}><i class="fa-solid fa-trash-can"></i>Clear route</button></div>`;
+  if (!n) return html + `<div class="empty"><i class="fa-solid fa-hand-pointer big"></i>No stops yet.</div>`;
+  html += `<ol class="stops" id="stopList">`;
+  t.route.forEach((s, i) => {
+    const p = pinById(s.pinId);
+    html += `<li class="stop" data-sid="${s.sid}"><div class="stop-main">
+      <button class="drag" aria-label="Drag to reorder"><i class="fa-solid fa-grip-lines"></i></button>
+      <span class="snum">${i + 1}</span>
+      <span class="txt" data-act="focus-pin" data-id="${p.id}"><b>${esc(p.name)}</b>${pinLabel(p) ? `<small>${esc(pinLabel(p))}</small>` : ''}</span>
+      <button class="mini-btn" data-act="open-pin" data-id="${p.id}" title="Edit this pin"><i class="fa-solid fa-pen"></i></button>
+      <button class="mini-btn" data-act="remove-stop" data-sid="${s.sid}" title="Remove from route (pin stays on map)"><i class="fa-solid fa-xmark"></i></button>
+    </div>${i < n - 1 ? legHtml(st.legs[i], t) : ''}</li>`;
+  });
+  html += `</ol>`;
+  if (n >= 2) html += `<button class="btn big amber" style="margin-top:16px" data-act="go" data-step="days">Next: Step 3, plan the days<i class="fa-solid fa-arrow-right"></i></button>`;
+  html += `<p class="hint" style="font-size:13px">Drive times are estimates without traffic, stops or ferry wait times.</p>`;
+  return html;
+}
+let sortable = null;
+function setupSortable(){
+  if (sortable) { sortable.destroy(); sortable = null; }
+  const el = $('#stopList'); if (!el || !window.Sortable) return;
+  sortable = Sortable.create(el, {handle: '.drag', animation: 150, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen', fallbackTolerance: 3,
+    onStart: () => { ui.sorting = true; },
+    onEnd: () => {
+      ui.sorting = false;
+      const order = [...el.children].map(li => li.dataset.sid);
+      const cur = trip().route.map(s => s.sid);
+      if (order.join() !== cur.join()) { change('Reorder stops', t => { const m = new Map(t.route.map(s => [s.sid, s])); t.route = order.map(id => m.get(id)).filter(Boolean); }); }
+      else if (ui.panelDirty) { ui.panelDirty = false; renderPanel(); }
+    }});
+}
+
+/* ---- Step 3: days ---- */
+function daysView(){
+  const t = trip(); const n = t.route.length;
+  if (n < 2) return `<div class="empty"><i class="fa-solid fa-calendar-days big"></i><b>Step 3: Plan the days</b>First connect at least two pins into a route.</div><button class="btn big green" data-act="go" data-step="route"><i class="fa-solid fa-arrow-left"></i>Go to Step 2: Route</button>`;
+  const st = routeStats(t); const days = computeDays(t, st);
+  let html = totalsHtml(st, n, ' days').replace('total driving', `${days.length} day${days.length === 1 ? '' : 's'} · total driving`);
+  html += `<label class="label">First day of the trip (optional)</label><input class="input" type="date" id="startDate" value="${esc(t.startDate)}">`;
+  html += `<label class="label">Most driving you want in one day</label>
+    <div class="row-inline"><select class="input" id="maxHours" style="width:auto;flex:1">${[3,4,5,6,7,8,9,10,11,12].map(h => `<option value="${h}" ${h === t.maxDayHours ? 'selected' : ''}>${h} hours</option>`).join('')}</select>
+    <button class="btn amber" data-act="suggest-days" style="flex:1.3"><i class="fa-solid fa-wand-magic-sparkles"></i>Split into days</button></div>`;
+  html += `<p class="hint">Or press <b style="color:var(--text)"><i class="fa-solid fa-moon"></i> End day</b> on any stop to sleep there.</p>`;
+  for (const d of days) {
+    const long = d.s > (t.maxDayHours + 0.5) * 3600;
+    const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
+    html += `<div class="day"><div class="day-head"><div class="d1">Day ${d.n}${d.date ? ' · ' + d.date.toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric'}) : ''}</div>
+      <div class="d2">${esc(from)}${from !== to ? ' → ' + esc(to) : ''}</div>
+      <div class="d3"><span><b style="color:var(--text)">${miles(d.d)}</b> · ${hrs(d.s)} driving</span>${long ? '<span class="pill warn"><i class="fa-solid fa-triangle-exclamation"></i>Long day</span>' : ''}${d.ferry ? '<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry</span>' : ''}${d.missing ? `<span class="pill err">${d.missing} drive${d.missing === 1 ? '' : 's'} missing</span>` : ''}</div></div><ol class="stops" style="margin:0">`;
+    d.idx.forEach((i, k) => {
+      const s = t.route[i]; const p = pinById(s.pinId); const isStart = k === 0 && d.n > 1; const last = i === n - 1;
+      html += `<li class="stop"><div class="stop-main" style="padding-left:10px"><span class="snum">${i + 1}</span>
+        <span class="txt" data-act="focus-pin" data-id="${p.id}"><b>${esc(p.name)}</b>${pinLabel(p) ? `<small>${esc(pinLabel(p))}</small>` : ''}</span>
+        ${isStart ? '<span class="endpoint">woke up here</span>' : last ? '<span class="endpoint">trip ends</span>' : i === 0 ? '<span class="endpoint">start</span>' : `<button class="night-btn${s.overnight ? ' on' : ''}" data-act="toggle-night" data-sid="${s.sid}" title="${s.overnight ? 'Don’t sleep here' : 'End the day and sleep here'}"><i class="fa-solid fa-moon"></i>${s.overnight ? 'Sleep here' : 'End day'}</button>`}
+      </div>${k < d.idx.length - 1 ? legHtml(st.legs[i], t) : ''}</li>`;
+    });
+    html += `</ol></div>`;
+  }
+  html += `<div style="display:grid;gap:8px;margin-top:18px"><button class="btn big purple" data-act="make-doc"><i class="fa-solid fa-file-word"></i>Download trip plan (Word)</button>
+    <button class="btn ghost" data-act="copy-text"><i class="fa-solid fa-copy"></i>Copy trip plan as text</button></div>
+    <p class="hint" style="font-size:13px">The Word file opens in Microsoft Word, Pages and Google Docs.</p>`;
+  return html;
+}
+function fillRoutePlaces(){ const t = trip(); t.route.forEach(s => { const p = pinById(s.pinId); if (p && !p.place) fillPlace(p.id); }); }
+
+/* ---- Pin editor ---- */
+function openEditor(id, fly = true){
+  const p = pinById(id); if (!p) return;
+  if (ui.mode === 'add') setMode(null);
+  ui.editorPinId = id; ui.selectedPinId = id; coalesce = null;
+  if (innerWidth <= 820) $('#panel').classList.remove('collapsed'), updateHandle();
+  renderEditor(true); renderMap();
+  if (fly) flyToPin(p); else if (!map.getBounds().pad(-0.1).contains([p.lat, p.lng])) map.panTo([p.lat, p.lng]);
+}
+function closeEditor(){
+  ui.editorPinId = null; coalesce = null; $('#editor').hidden = true; $('#editor').innerHTML = '';
+  renderPanel(); renderMap();
+}
+function renderEditor(force){
+  const ed = $('#editor'); const p = ui.editorPinId && pinById(ui.editorPinId);
+  if (!p) { ed.hidden = true; ed.innerHTML = ''; return; }
+  const scroll = $('.ed-body', ed)?.scrollTop || 0;
+  const t = trip(); const nums = stopNumbers(t).get(p.id);
+  const knownColor = COLORS.some(c => c[0].toLowerCase() === p.color.toLowerCase());
+  ed.hidden = false;
+  ed.innerHTML = `<div class="ed-top"><button class="btn sm green" data-act="close-editor"><i class="fa-solid fa-check"></i>Done</button><h2>Edit pin</h2><button class="btn sm ghost" data-act="delete-pin" style="color:#fca5a5"><i class="fa-solid fa-trash-can"></i>Delete</button></div>
+  <div class="ed-body">
+    <label class="label" for="edName">Name</label>
+    <input class="input name-input" id="edName" value="${esc(p.name)}" maxlength="140" autocomplete="off">
+    <div class="place-line" id="edPlace">${edPlaceHtml(p)}</div>
+    <label class="label">Color</label>
+    <div class="swatches">${COLORS.map(([c, nm]) => `<button class="sw${c.toLowerCase() === p.color.toLowerCase() ? ' on' : ''}" style="--c:${c};--fg:${fgFor(c)}" data-act="set-color" data-c="${c}" title="${nm}" aria-label="${nm}">${c.toLowerCase() === p.color.toLowerCase() ? '<i class="fa-solid fa-check"></i>' : ''}</button>`).join('')}${knownColor ? '' : `<button class="sw on" style="--c:${p.color};--fg:${fgFor(p.color)}" title="Imported color"><i class="fa-solid fa-check"></i></button>`}</div>
+    <label class="label">Icon</label>
+    <div class="icons" style="--c:${p.color};--fg:${fgFor(p.color)}">${ICONS.map(([ic, nm]) => `<button class="ic${ic === p.icon ? ' on' : ''}" data-act="set-icon" data-ic="${ic}" title="${nm}" aria-label="${nm}"><i class="fa-solid fa-${ic}"></i></button>`).join('')}</div>
+    <label class="label" for="edNotes">Notes</label>
+    <textarea class="input" id="edNotes" placeholder="Hours, tips, what to order, reservation number…">${esc(p.notes)}</textarea>
+    <label class="label">Web links</label>
+    <div class="links">${p.links.map((l, i) => `<div class="link-row"><i class="fa-solid fa-link" style="color:var(--faint)"></i><a href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc(l.url)}">${esc(linkLabel(l.url))}</a><a class="mini-btn" style="flex:none;color:var(--muted)" href="${esc(l.url)}" target="_blank" rel="noopener" title="Open link"><i class="fa-solid fa-arrow-up-right-from-square"></i></a><button class="mini-btn" data-act="del-link" data-i="${i}" title="Remove link"><i class="fa-solid fa-xmark"></i></button></div>`).join('')}</div>
+    <div class="row-inline"><input class="input" id="edLink" placeholder="Paste a web link" inputmode="url" autocomplete="off"><button class="btn blue" data-act="add-link">Add</button></div>
+    <label class="label" for="edLayer">Layer</label>
+    <select class="input" id="edLayer">${t.layers.map(l => `<option value="${l.id}" ${l.id === p.layerId ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>
+    <label class="label">Route</label>
+    <div class="ed-route card">${nums ? `<span><span class="stopnum" style="display:inline-grid">#${nums.join(', #')}</span>&nbsp; This pin is in the route</span><button class="btn sm ghost" data-act="remove-from-route">Remove</button>` : `<span style="color:var(--muted)">Not in the route yet</span><button class="btn sm green" data-act="editor-add-route"><i class="fa-solid fa-plus"></i>Add to route</button>`}</div>
+    <div class="tip"><i class="fa-solid fa-hand-pointer" style="margin-top:3px"></i><span>To move this pin, drag it on the map. Changes save automatically.</span></div>
+  </div>`;
+  $('.ed-body', ed).scrollTop = scroll;
+}
+function edPlaceHtml(p){ const pl = pinPlace(p); return `<i class="fa-solid fa-location-crosshairs"></i> ${pl ? esc(pl) + ' · ' : ''}${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`; }
+function renderEditorPlaceOnly(){ const p = ui.editorPinId && pinById(ui.editorPinId); const el = $('#edPlace'); if (p && el) el.innerHTML = edPlaceHtml(p); const nm = $('#edName'); if (p && nm && document.activeElement !== nm && nm.value !== p.name) nm.value = p.name; }
+
+/* =========================================================
+   EVENTS (panel)
+   ========================================================= */
+document.addEventListener('click', async e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act, id = el.dataset.id;
+  const t = trip();
+  switch (act) {
+    case 'add-mode': setMode(ui.mode === 'add' ? null : 'add'); break;
+    case 'import': $('#fileInput').click(); break;
+    case 'new-layer': { const name = await askText('New layer', 'Layer name (for example “Food” or “Maybe”)', ''); if (name) { const lid = uid(); change('New layer', t => { t.layers.push({id: lid, name, visible: true}); t.activeLayerId = lid; }); toast(`New pins will go into “${name}”.`); } break; }
+    case 'toggle-collapse': ui.collapsed.has(id) ? ui.collapsed.delete(id) : ui.collapsed.add(id); renderPanel(); break;
+    case 'set-active-layer': change('Choose layer', t => { t.activeLayerId = id; const l = t.layers.find(x => x.id === id); if (l) l.visible = true; }); break;
+    case 'toggle-layer': change('Show/hide layer', t => { const l = t.layers.find(x => x.id === id); l.visible = !l.visible; }); break;
+    case 'layer-menu': layerMenu(el, id); break;
+    case 'open-pin': openEditor(id); break;
+    case 'focus-pin': { const p = pinById(id); if (p) { ui.selectedPinId = id; flyToPin(p); renderMap(); markers.get(id)?.m.openTooltip(); } break; }
+    case 'close-editor': closeEditor(); break;
+    case 'delete-pin': deletePin(ui.editorPinId); break;
+    case 'set-color': lastStyle.color = el.dataset.c; change('Change color', t => { pinById(ui.editorPinId).color = el.dataset.c; }); break;
+    case 'set-icon': lastStyle.icon = el.dataset.ic; change('Change icon', t => { pinById(ui.editorPinId).icon = el.dataset.ic; }); break;
+    case 'add-link': addLinkFromInput(); break;
+    case 'del-link': change('Remove link', t => { pinById(ui.editorPinId).links.splice(+el.dataset.i, 1); }); break;
+    case 'editor-add-route': addToRoute(ui.editorPinId); break;
+    case 'remove-from-route': { const pid = ui.editorPinId; change('Remove stop', t => { t.route = t.route.filter(s => s.pinId !== pid); }); undoToast('Removed from the route'); break; }
+    case 'go': setStep(el.dataset.step); break;
+    case 'add-all': addAllPins(); break;
+    case 'suggest': suggestOrder(); break;
+    case 'reverse': reverseRoute(); break;
+    case 'clear-route': clearRoute(); break;
+    case 'remove-stop': removeStop(el.dataset.sid); break;
+    case 'retry': retryErrors(); break;
+    case 'zoom-leg': { const l = routeStats(t).legs[+el.dataset.i]; if (l && l.a && l.b) { const pts = [[l.a.lat, l.a.lng], [l.b.lat, l.b.lng]]; if (l.info && l.info.segs) l.info.segs.forEach(s => s.c.forEach(c => pts.push(c))); map.fitBounds(pts, {padding: [70, 70], maxZoom: 13}); } break; }
+    case 'toggle-night': change('End day here', t => { const s = t.route.find(x => x.sid === el.dataset.sid); s.overnight = !s.overnight; }); break;
+    case 'suggest-days': suggestDays(); break;
+    case 'make-doc': makeDoc(el); break;
+    case 'copy-text': copyText(); break;
+  }
+});
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'pinFilter') { ui.filter = t.value; const tr = trip(); $('#layerList').innerHTML = layersHtml(tr, stopNumbers(tr), ui.filter.trim().toLowerCase()); }
+  else if (t.id === 'edName') { const v = t.value; change('Rename pin', tr => { const p = pinById(ui.editorPinId); p.name = v; p.autoName = false; }, {key: 'name' + ui.editorPinId, render: 'map'}); }
+  else if (t.id === 'edNotes') { const v = t.value; change('Edit notes', tr => { pinById(ui.editorPinId).notes = v; }, {key: 'notes' + ui.editorPinId, render: false}); }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'edLayer') change('Move to layer', tr => { pinById(ui.editorPinId).layerId = t.value; const l = tr.layers.find(x => x.id === t.value); if (l) l.visible = true; });
+  else if (t.id === 'startDate') change('Set start date', tr => { tr.startDate = t.value || ''; });
+  else if (t.id === 'maxHours') change('Set daily driving', tr => { tr.maxDayHours = +t.value; });
+});
+document.addEventListener('keydown', e => {
+  if (e.target.id === 'edLink' && e.key === 'Enter') { e.preventDefault(); addLinkFromInput(); }
+  if (e.target.id === 'edName' && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+});
+function addLinkFromInput(){
+  const inp = $('#edLink'); if (!inp) return; const u = normUrl(inp.value);
+  if (!u) { toast('That doesn’t look like a web link. Try copying it from your browser’s address bar.', {err: true}); inp.focus(); return; }
+  change('Add link', t => { pinById(ui.editorPinId).links.push({url: u}); });
+  setTimeout(() => $('#edLink')?.focus(), 0);
+}
+function layerMenu(anchor, id){
+  const t = trip(); const l = layerById(id); const count = t.pins.filter(p => p.layerId === id).length;
+  showMenu(anchor, [
+    {icon: 'pen', label: 'Rename layer', run: async () => { const n = await askText('Rename layer', 'Layer name', l.name); if (n) change('Rename layer', t => { t.layers.find(x => x.id === id).name = n; }); }},
+    {icon: 'palette', label: 'Color all pins in this layer', run: () => colorLayer(id)},
+    '-',
+    {icon: 'trash-can', label: count ? `Delete layer and its ${count} pin${count === 1 ? '' : 's'}` : 'Delete layer', cls: 'danger', run: async () => {
+      if (t.layers.length === 1) { toast('You need at least one layer. Rename this one instead.'); return; }
+      if (count && !await askConfirm('Delete this layer?', `“${esc(l.name)}” and its <b>${count} pin${count === 1 ? '' : 's'}</b> will be removed. You can undo this right after.`, 'Delete', true)) return;
+      change('Delete layer', t => { const gone = new Set(t.pins.filter(p => p.layerId === id).map(p => p.id)); t.pins = t.pins.filter(p => !gone.has(p.id)); t.route = t.route.filter(s => !gone.has(s.pinId)); t.layers = t.layers.filter(x => x.id !== id); if (t.activeLayerId === id) t.activeLayerId = t.layers[0].id; });
+      undoToast('Layer deleted');
+    }}
+  ]);
+}
+function colorLayer(id){
+  modal({title: 'Color every pin in this layer', html: `<div class="swatches" style="margin-top:6px">${COLORS.map(([c, nm]) => `<button class="sw" style="--c:${c};--fg:${fgFor(c)}" data-pick="${c}" title="${nm}"></button>`).join('')}</div>`,
+    buttons: [{label: 'Cancel', value: null}],
+    onOpen: (back, close) => back.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { const c = b.dataset.pick; close(null); change('Color layer', t => t.pins.forEach(p => { if (p.layerId === id) p.color = c; })); undoToast('Layer recolored'); })});
+}
+
+/* ---------- steps & modes ---------- */
+function setStep(s){
+  if (ui.editorPinId) { ui.editorPinId = null; $('#editor').hidden = true; }
+  if (ui.mode === 'add' && s !== 'pins') ui.mode = null;
+  ui.step = s; prefs.step = s; savePrefs();
+  document.body.classList.toggle('adding', ui.mode === 'add');
+  render();
+  if (innerWidth <= 820) { $('#panel').classList.remove('collapsed'); updateHandle(); setTimeout(() => map.invalidateSize(), 220); }
+}
+document.querySelectorAll('.step').forEach(b => b.onclick = () => setStep(b.dataset.step));
+function setMode(m){
+  if (ui.mode === 'measure' && m !== 'measure') clearMeasure();
+  ui.mode = m;
+  if (m === 'add' && ui.step !== 'pins') { ui.step = 'pins'; prefs.step = 'pins'; }
+  if (m === 'add' && ui.editorPinId) { ui.editorPinId = null; $('#editor').hidden = true; }
+  document.body.classList.toggle('adding', m === 'add');
+  document.body.classList.toggle('measuring', m === 'measure');
+  $('#measureBtn').classList.toggle('on', m === 'measure');
+  if (m === 'add') map.doubleClickZoom.disable(); else map.doubleClickZoom.enable();
+  $('#measureCard').hidden = m !== 'measure';
+  if (m === 'measure') renderMeasure();
+  if (m && innerWidth <= 820) { $('#panel').classList.add('collapsed'); updateHandle(); setTimeout(() => map.invalidateSize(), 220); }
+  render();
+}
+function renderBanner(){
+  const b = $('#banner'); const t = trip();
+  if (ui.mode === 'add') { const l = layerById(t.activeLayerId); b.className = 'banner add'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-hand-pointer"></i><span>${TAP} the map to drop pins${t.layers.length > 1 ? ` into “${esc(l.name)}”` : ''}</span><button class="btn sm" data-act="add-mode"><i class="fa-solid fa-check"></i>Done</button>`; }
+  else if (ui.mode === 'measure') { b.className = 'banner measure'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-ruler"></i><span>${TAP} two or more spots to measure</span><button class="btn sm" id="bannerMeasureDone">Done</button>`; $('#bannerMeasureDone').onclick = () => setMode(null); }
+  else if (ui.step === 'route' && t.pins.length && !ui.editorPinId) { b.className = 'banner route'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-route"></i><span>${TAP} pins in the order you’ll visit them</span>`; }
+  else b.hidden = true;
+}
+
+/* =========================================================
+   SEARCH (Photon)
+   ========================================================= */
+let searchTimer = null, searchSeq = 0, searchResults = [], kbIndex = -1, previewMarker = null;
+const sInput = $('#searchInput'), sBox = $('#searchResults');
+sInput.addEventListener('input', () => {
+  $('#searchClear').hidden = !sInput.value; clearTimeout(searchTimer);
+  const q = sInput.value.trim(); if (q.length < 3) { sBox.hidden = true; return; }
+  searchTimer = setTimeout(() => doSearch(q), 350);
+});
+sInput.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!searchResults.length) return; kbIndex = (kbIndex + (e.key === 'ArrowDown' ? 1 : -1) + searchResults.length) % searchResults.length; showResults(); }
+  else if (e.key === 'Enter') { e.preventDefault(); clearTimeout(searchTimer); if (searchResults.length && !sBox.hidden) pickResult(Math.max(0, kbIndex)); else if (sInput.value.trim().length >= 2) doSearch(sInput.value.trim(), true); }
+  else if (e.key === 'Escape') { sBox.hidden = true; sInput.blur(); }
+});
+sInput.addEventListener('focus', () => { if (searchResults.length && sInput.value.trim().length >= 3) sBox.hidden = false; });
+$('#searchClear').onclick = () => { sInput.value = ''; $('#searchClear').hidden = true; sBox.hidden = true; searchResults = []; if (previewMarker) { map.removeLayer(previewMarker); previewMarker = null; } sInput.focus(); };
+document.addEventListener('mousedown', e => { if (!e.target.closest('#mapSearch')) sBox.hidden = true; });
+async function doSearch(q, pickFirst){
+  const seq = ++searchSeq; sBox.hidden = false; sBox.innerHTML = '<div class="note"><i class="fa-solid fa-circle-notch fa-spin"></i> Searching…</div>';
+  const c = map.getCenter();
+  try {
+    const r = await fetchJSON(`${PHOTON}/api/?q=${encodeURIComponent(q)}&limit=7&lang=en&lat=${c.lat.toFixed(3)}&lon=${c.lng.toFixed(3)}&location_bias_scale=0.3`, 12000);
+    if (seq !== searchSeq) return;
+    const feats = (r.json && r.json.features) || [];
+    searchResults = feats.map(f => { const pr = f.properties; const pl = photonPlace(pr); const name = pr.name || [pr.housenumber, pr.street].filter(Boolean).join(' ') || placeShort(pl) || 'Place';
+      const sub = [pr.housenumber && pr.street ? `${pr.housenumber} ${pr.street}` : pr.street, placeShort(pl)].filter(Boolean).filter(x => x !== name).join(' · ');
+      return {name, sub, lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], place: pl, kind: pr.osm_value || pr.type || '', extent: pr.extent}; });
+    kbIndex = -1; showResults(); if (pickFirst && searchResults.length) pickResult(0);
+  } catch (e) { if (seq === searchSeq) sBox.innerHTML = '<div class="note"><i class="fa-solid fa-wifi"></i> Search isn’t reachable right now. Check your internet connection.</div>'; }
+}
+function kindIcon(k){ const m = {city: 'city', town: 'city', village: 'house', restaurant: 'utensils', cafe: 'mug-hot', fuel: 'gas-pump', hotel: 'bed', motel: 'bed', camp_site: 'campground', museum: 'building-columns', park: 'tree', national_park: 'tree', peak: 'mountain', viewpoint: 'mountain-sun', beach: 'umbrella-beach', attraction: 'star', aerodrome: 'plane', ferry_terminal: 'ferry', charging_station: 'charging-station', lake: 'water', water: 'water'}; return m[k] || 'location-dot'; }
+function showResults(){
+  if (!searchResults.length) { sBox.innerHTML = '<div class="note">No places found. Try adding a city or state.</div>'; sBox.hidden = false; return; }
+  sBox.innerHTML = searchResults.map((r, i) => `<button class="result${i === kbIndex ? ' kb' : ''}" data-r="${i}"><i class="fa-solid fa-${kindIcon(r.kind)}"></i><span><b>${esc(r.name)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</span></button>`).join('');
+  sBox.hidden = false;
+}
+sBox.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b) pickResult(+b.dataset.r); });
+function pickResult(i){
+  const r = searchResults[i]; if (!r) return; sBox.hidden = true; sInput.blur();
+  if (previewMarker) map.removeLayer(previewMarker);
+  if (r.extent && r.extent.length === 4) map.flyToBounds([[r.extent[1], r.extent[0]], [r.extent[3], r.extent[2]]], {maxZoom: 13, duration: .7});
+  else map.flyTo([r.lat, r.lng], 13, {duration: .7});
+  previewMarker = L.marker([r.lat, r.lng], {icon: L.divIcon({className: '', html: '<div class="search-mk"></div>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14]}), zIndexOffset: 2000}).addTo(map);
+  const div = document.createElement('div');
+  div.innerHTML = `<div class="pp-title">${esc(r.name)}</div><div class="pp-sub">${esc(r.sub || '')}</div><button class="btn blue" data-pp="add"><i class="fa-solid fa-plus"></i>Add as a pin</button>${ui.step === 'route' ? '<button class="btn green" data-pp="addroute"><i class="fa-solid fa-route"></i>Add pin + add to route</button>' : ''}`;
+  div.addEventListener('click', ev => { const b = ev.target.closest('[data-pp]'); if (!b) return;
+    addPinAt(L.latLng(r.lat, r.lng), {name: r.name, place: r.place, toRoute: b.dataset.pp === 'addroute', icon: lastStyle.icon === 'location-dot' && kindIcon(r.kind) !== 'location-dot' ? kindIcon(r.kind) : undefined});
+    map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; });
+  previewMarker.bindPopup(div, {minWidth: 240, maxWidth: 300, autoPanPadding: [40, 90]});
+  setTimeout(() => previewMarker && previewMarker.openPopup(), 750);
+}
+
+/* =========================================================
+   MEASURE
+   ========================================================= */
+const meas = {pts: [], road: null, seq: 0, timer: null};
+$('#measureBtn').onclick = () => setMode(ui.mode === 'measure' ? null : 'measure');
+function addMeasurePoint(ll){ meas.pts.push(L.latLng(ll.lat, ll.lng)); meas.road = meas.pts.length > 1 ? 'loading' : null; drawMeasure(); renderMeasure(); clearTimeout(meas.timer); if (meas.pts.length > 1) meas.timer = setTimeout(measureRoad, 450); }
+function clearMeasure(){ meas.pts = []; meas.road = null; meas.seq++; measureLayer.clearLayers(); renderMeasure(); }
+function undoMeasure(){ meas.pts.pop(); meas.seq++; meas.road = meas.pts.length > 1 ? 'loading' : null; drawMeasure(); renderMeasure(); clearTimeout(meas.timer); if (meas.pts.length > 1) meas.timer = setTimeout(measureRoad, 300); }
+function straight(){ let d = 0; for (let i = 1; i < meas.pts.length; i++) d += haversine(meas.pts[i - 1], meas.pts[i]); return d; }
+function drawMeasure(){
+  measureLayer.clearLayers();
+  if (meas.road && meas.road.coords) L.polyline(meas.road.coords, {color: '#facc15', weight: 4, opacity: .55, interactive: false}).addTo(measureLayer);
+  if (meas.pts.length > 1) L.polyline(meas.pts, {color: '#facc15', weight: 3, dashArray: '8 8', interactive: false}).addTo(measureLayer);
+  meas.pts.forEach((p, i) => { const c = L.circleMarker(p, {radius: 7, color: '#2a2000', weight: 2, fillColor: '#facc15', fillOpacity: 1, interactive: false}).addTo(measureLayer); if (i === meas.pts.length - 1 && i > 0) c.bindTooltip(miles(straight()), {permanent: true, direction: 'right', className: 'measure-label', offset: [8, 0]}).openTooltip(); });
+}
+async function measureRoad(){
+  const seq = ++meas.seq; const pts = meas.pts.slice(0, 25).map(p => ({lat: p.lat, lng: p.lng}));
+  const r = await getRoute(pts);
+  if (seq !== meas.seq) return;
+  if (r.ok) { const coords = []; let d = 0, t = 0; r.legs.forEach(l => { d += l.d; t += l.t; l.segs.forEach(sg => coords.push(...sg.c)); }); meas.road = {d, t, coords}; }
+  else meas.road = {err: r.code === 'network' ? 'Couldn’t reach the directions service.' : 'No driving route between these spots.'};
+  drawMeasure(); renderMeasure();
+}
+function renderMeasure(){
+  const c = $('#measureCard'); if (ui.mode !== 'measure') { c.hidden = true; return; }
+  c.hidden = false;
+  if (!meas.pts.length) { c.innerHTML = `<b><i class="fa-solid fa-ruler"></i> Measure</b><p class="hint" style="margin-bottom:0">Click a spot on the map, then click another. You can click pins and cities too. Nothing gets saved.</p>`; return; }
+  const road = meas.road === 'loading' ? '<i class="fa-solid fa-circle-notch fa-spin"></i>' : meas.road && meas.road.err ? `<span style="font-size:14px;color:#fca5a5">${meas.road.err}</span>` : meas.road ? `${miles(meas.road.d)}<br><small style="font-size:14px;color:var(--muted)">about ${hrs(meas.road.t)} driving</small>` : '—';
+  c.innerHTML = `<b><i class="fa-solid fa-ruler"></i> Measure</b>
+    <div class="m-row"><span>Straight line</span><b>${meas.pts.length > 1 ? miles(straight()) : '—'}</b></div>
+    <div class="m-row"><span>By road</span><b>${road}</b></div>
+    ${meas.pts.length === 1 ? '<p class="hint" style="margin:4px 0">Now click a second spot.</p>' : ''}
+    <div class="btn-row" style="margin-top:8px"><button class="btn sm ghost" id="mUndo"><i class="fa-solid fa-rotate-left"></i>Last point</button><button class="btn sm ghost" id="mClear"><i class="fa-solid fa-eraser"></i>Start over</button></div>`;
+  $('#mUndo').onclick = undoMeasure; $('#mClear').onclick = clearMeasure;
+}
+
+/* =========================================================
+   TRIPS MENU + MAIN MENU
+   ========================================================= */
+$('#tripBtn').onclick = () => {
+  const items = [{header: 'Your trips'}];
+  [...db.trips].sort((a, b) => b.updated - a.updated).forEach(t => items.push({icon: t.id === db.currentId ? 'circle-check' : 'suitcase', label: `${t.name}  (${t.pins.length} pins)`, cls: t.id === db.currentId ? 'cur' : '', run: () => switchTrip(t.id)}));
+  items.push('-', {icon: 'plus', label: 'Start a new trip', run: createTrip},
+    {icon: 'pen', label: 'Rename this trip', run: renameTrip},
+    {icon: 'clone', label: 'Make a copy of this trip', run: duplicateTrip},
+    {icon: 'trash-can', label: 'Delete this trip', cls: 'danger', run: deleteTrip});
+  showMenu($('#tripBtn'), items);
+};
+function switchTrip(id){ if (id === db.currentId) return; db.currentId = id; ui.editorPinId = null; ui.selectedPinId = null; ui.filter = ''; lastRouteSig = ''; $('#editor').hidden = true; scheduleSave(); render(); fitTrip(); }
+async function createTrip(){ const name = await askText('Start a new trip', 'Trip name', '', 'Create trip'); if (!name) return; const t = newTrip(name); db.trips.push(t); switchTrip(t.id); setStep('pins'); toast(`Created “${name}”. Press “Add pins” to begin.`); }
+async function renameTrip(){ const t = trip(); const name = await askText('Rename trip', 'Trip name', t.name); if (name) change('Rename trip', t => t.name = name); }
+function duplicateTrip(){ const t = JSON.parse(JSON.stringify(trip())); t.id = uid(); t.name = t.name + ' (copy)'; t.created = t.updated = Date.now(); db.trips.push(t); switchTrip(t.id); toast('Copy created. You’re now in the copy.'); }
+async function deleteTrip(){
+  const t = trip();
+  if (!await askConfirm('Delete this trip?', `<b>“${esc(t.name)}”</b> and its ${t.pins.length} pins will be deleted from this browser.`, 'Delete trip', true)) return;
+  const idx = db.trips.indexOf(t); db.trips.splice(idx, 1);
+  if (!db.trips.length) db.trips.push(newTrip('My first trip'));
+  db.currentId = db.trips[0].id; ui.editorPinId = null; lastRouteSig = ''; scheduleSave(); render(); fitTrip();
+  toast(`Deleted “${t.name}”`, {action: 'Undo', ms: 10000, onAction: () => { db.trips.splice(Math.min(idx, db.trips.length), 0, t); switchTrip(t.id); }});
+}
+$('#moreBtn').onclick = () => showMenu($('#moreBtn'), [
+  {header: 'Bring trips in'},
+  {icon: 'file-import', label: 'Import a Google My Map (KML/KMZ)', run: () => $('#fileInput').click()},
+  {icon: 'clock-rotate-left', label: 'Restore from a backup file', run: () => $('#fileInput').click()},
+  {header: 'Take trips out'},
+  {icon: 'file-word', label: 'Download trip plan (Word)', run: () => { if (trip().route.length < 2) { toast('Make a route first (Step 2).'); return; } makeDoc(); }},
+  {icon: 'file-export', label: 'Export this trip for Google Earth / My Maps (KML)', run: exportKML},
+  {icon: 'floppy-disk', label: 'Download a backup of all trips', run: exportBackup},
+  '-',
+  {icon: 'circle-question', label: 'How to use Larson Family Maps', run: showHelp}
+]);
+$('#undoBtn').onclick = undo; $('#redoBtn').onclick = redo;
+document.addEventListener('keydown', e => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if ((e.metaKey || e.ctrlKey) && !typing && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if ((e.metaKey || e.ctrlKey) && !typing && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+  else if (e.key === 'Escape' && !document.querySelector('.modal-back')) { if (openMenuEl) closeMenu(); else if (ui.mode) setMode(null); else if (ui.editorPinId && !typing) closeEditor(); }
+});
+
+/* =========================================================
+   IMPORT  (KML / KMZ from Google My Maps, or a backup .json)
+   ========================================================= */
+$('#fileInput').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); };
+let dragDepth = 0, dropEl = null;
+window.addEventListener('dragenter', e => { if (![...(e.dataTransfer?.types || [])].includes('Files')) return; dragDepth++; if (!dropEl) { dropEl = document.createElement('div'); dropEl.className = 'drop-overlay'; dropEl.textContent = 'Drop a My Maps file (KML or KMZ) to import it'; document.body.appendChild(dropEl); } });
+window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth && dropEl) { dropEl.remove(); dropEl = null; } });
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; if (dropEl) { dropEl.remove(); dropEl = null; } const f = e.dataTransfer?.files?.[0]; if (f) importFile(f); });
+
+async function importFile(file){
+  try {
+    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+    const isZip = head[0] === 0x50 && head[1] === 0x4b;
+    let text;
+    if (isZip) {
+      await loadScript(JSZIP_URL); const zip = await JSZip.loadAsync(file);
+      const names = Object.keys(zip.files).filter(n => /\.kml$/i.test(n)); if (!names.length) throw new Error('No map inside this KMZ file.');
+      text = await zip.file(names.find(n => /doc\.kml$/i.test(n)) || names[0]).async('string');
+    } else text = await file.text();
+    const trimmed = text.trim();
+    if (trimmed.startsWith('{')) return restoreBackup(JSON.parse(trimmed));
+    const res = parseKML(trimmed, file.name);
+    if (!res.pins.length) { modal({title: 'No places found', html: `<p>That file didn’t have any pins in it${res.lines ? ` (it had ${res.lines} line${res.lines === 1 ? '' : 's'}, which this site doesn’t import yet)` : ''}.</p>`, buttons: [{label: 'OK', kind: 'blue'}]}); return; }
+    const choice = await modal({title: `Import “${esc(res.name)}”`, html: `<p>Found <b style="color:var(--text)">${res.pins.length} place${res.pins.length === 1 ? '' : 's'}</b> in ${res.layers.length} layer${res.layers.length === 1 ? '' : 's'}.${res.lines ? ` (${res.lines} drawn line${res.lines === 1 ? '' : 's'} and route${res.lines === 1 ? '' : 's'} will be skipped. You’ll rebuild the route in Step 2.)` : ''}</p>`,
+      buttons: [{label: 'Cancel', value: null}, {label: 'Add to this trip', kind: 'ghost', value: 'add'}, {label: '<i class="fa-solid fa-plus"></i> Make it a new trip', kind: 'blue', value: 'new'}]});
+    if (!choice) return;
+    if (choice === 'new') { const t = newTrip(res.name); t.layers = res.layers; t.activeLayerId = res.layers[0].id; t.pins = res.pins; db.trips.push(normalizeTrip(t)); switchTrip(t.id); setStep('pins'); }
+    else { change('Import pins', t => { t.layers.push(...res.layers); t.pins.push(...res.pins); }); fitTrip(); }
+    toast(`Imported ${res.pins.length} places.`);
+  } catch (err) {
+    console.error(err);
+    modal({title: 'That file couldn’t be opened', html: `<p>Make sure it’s a KML or KMZ file exported from Google My Maps, or a backup file from this site.</p><p style="font-size:14px">${esc(err.message || '')}</p>`, buttons: [{label: 'OK', kind: 'blue'}]});
+  }
+}
+function kmlColor(abgr){ const s = String(abgr || '').trim().replace('#', ''); if (!/^[0-9a-f]{8}$/i.test(s)) return null; return '#' + s.slice(6, 8) + s.slice(4, 6) + s.slice(2, 4); }
+function parseKML(text, filename){
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('The file isn’t valid KML.');
+  const kids = (el, tag) => [...el.children].filter(c => c.localName === tag);
+  const kid = (el, tag) => kids(el, tag)[0];
+  const txt = (el, tag) => { const k = el && kid(el, tag); return k ? k.textContent.trim() : ''; };
+  const all = tag => [...doc.getElementsByTagNameNS('*', tag)];
+  const styleColor = {};
+  all('Style').forEach(s => { const id = s.getAttribute('id'); if (!id) return; const is = [...s.getElementsByTagNameNS('*', 'IconStyle')][0]; const c = is && kmlColor(txt(is, 'color')); if (c) styleColor['#' + id] = c; });
+  all('StyleMap').forEach(sm => { const id = sm.getAttribute('id'); if (!id) return; const pair = kids(sm, 'Pair').find(p => txt(p, 'key') === 'normal') || kids(sm, 'Pair')[0]; const url = pair && txt(pair, 'styleUrl'); if (url && styleColor[url]) styleColor['#' + id] = styleColor[url]; });
+  const docEl = all('Document')[0]; const name = (docEl && txt(docEl, 'name')) || filename.replace(/\.(kml|kmz)$/i, '') || 'Imported trip';
+  const layers = []; const layerFor = new Map(); let lines = 0;
+  const getLayer = folder => { const key = folder || null; if (layerFor.has(key)) return layerFor.get(key); const l = {id: uid(), name: folder ? (txt(folder, 'name') || 'Layer') : 'Imported places', visible: true}; layers.push(l); layerFor.set(key, l.id); return l.id; };
+  const pins = [];
+  for (const pm of all('Placemark')) {
+    const pt = [...pm.getElementsByTagNameNS('*', 'Point')][0];
+    if (!pt) { lines++; continue; }
+    const coords = ([...pt.getElementsByTagNameNS('*', 'coordinates')][0]?.textContent || '').trim().split(/[\s,]+/).map(Number);
+    if (coords.length < 2 || !isFinite(coords[0]) || !isFinite(coords[1])) continue;
+    let folder = pm.parentElement; while (folder && folder.localName !== 'Folder' && folder.localName !== 'Document') folder = folder.parentElement;
+    const layerId = getLayer(folder && folder.localName === 'Folder' ? folder : null);
+    const styleUrl = txt(pm, 'styleUrl');
+    let color = styleColor[styleUrl] || null;
+    if (!color) { const m = styleUrl.match(/-([0-9A-Fa-f]{6})(?:-|$)/); if (m) color = '#' + m[1].toLowerCase(); }
+    const rawDesc = txt(pm, 'description');
+    const links = []; const addLink = u => { const n = normUrl(u.replace(/[).,;]+$/, '')); if (n && !links.some(l => l.url === n)) links.push({url: n}); };
+    let notes = '';
+    if (rawDesc) {
+      const html = rawDesc.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n');
+      const hd = new DOMParser().parseFromString(html, 'text/html');
+      hd.querySelectorAll('a[href]').forEach(a => addLink(a.getAttribute('href')));
+      hd.querySelectorAll('img[src]').forEach(i => addLink(i.getAttribute('src')));
+      notes = (hd.body.textContent || '');
+      (notes.match(/https?:\/\/[^\s<>"']+/g) || []).forEach(addLink);
+      notes = notes.replace(/https?:\/\/[^\s<>"']+/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    }
+    [...pm.getElementsByTagNameNS('*', 'Data')].forEach(d => { if (d.getAttribute('name') === 'gx_media_links') (txt(d, 'value').match(/https?:\/\/\S+/g) || []).forEach(addLink); });
+    pins.push({id: uid(), name: txt(pm, 'name') || 'Untitled place', lat: +coords[1].toFixed(6), lng: +coords[0].toFixed(6), color: color || DEFAULT_COLOR, icon: 'location-dot', notes, links, layerId, place: null});
+  }
+  if (!layers.length) layers.push({id: uid(), name: 'Imported places', visible: true});
+  return {name, layers: layers.filter(l => pins.some(p => p.layerId === l.id)), pins, lines};
+}
+
+/* ---------- export ---------- */
+function xmlEsc(s){ return String(s ?? '').replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c])); }
+function exportKML(){
+  const t = trip(); const colors = [...new Set(t.pins.map(p => p.color.toLowerCase()))];
+  const abgr = c => 'ff' + c.slice(5, 7) + c.slice(3, 5) + c.slice(1, 3);
+  let k = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${xmlEsc(t.name)}</name>\n`;
+  colors.forEach(c => { k += `<Style id="c${c.slice(1)}"><IconStyle><color>${abgr(c)}</color><scale>1.1</scale><Icon><href>https://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href></Icon></IconStyle></Style>\n`; });
+  k += `<Style id="route"><LineStyle><color>ff5ec522</color><width>5</width></LineStyle></Style>\n`;
+  for (const l of t.layers) {
+    const pins = t.pins.filter(p => p.layerId === l.id); if (!pins.length) continue;
+    k += `<Folder><name>${xmlEsc(l.name)}</name>\n`;
+    pins.forEach(p => { const desc = [p.notes, ...p.links.map(x => x.url)].filter(Boolean).join('\n'); k += `<Placemark><name>${xmlEsc(p.name)}</name>${desc ? `<description>${xmlEsc(desc)}</description>` : ''}<styleUrl>#c${p.color.slice(1).toLowerCase()}</styleUrl><Point><coordinates>${p.lng},${p.lat},0</coordinates></Point></Placemark>\n`; });
+    k += `</Folder>\n`;
+  }
+  const st = routeStats(t);
+  if (t.route.length > 1) {
+    const coords = []; st.legs.forEach(l => { if (l.info && l.info.status === 'ok') l.info.segs.forEach(s => s.c.forEach(c => coords.push(`${c[1]},${c[0]},0`))); else if (l.a && l.b) coords.push(`${l.a.lng},${l.a.lat},0`, `${l.b.lng},${l.b.lat},0`); });
+    k += `<Folder><name>Driving route</name><Placemark><name>${xmlEsc(t.name)} route</name><styleUrl>#route</styleUrl><LineString><tessellate>1</tessellate><coordinates>${coords.join(' ')}</coordinates></LineString></Placemark></Folder>\n`;
+  }
+  k += `</Document></kml>`;
+  download(new Blob([k], {type: 'application/vnd.google-earth.kml+xml'}), safeName(t.name) + '.kml');
+  toast('KML file downloaded.');
+}
+function exportBackup(){
+  const data = {app: 'larson-family-maps', version: APP_VERSION, exported: new Date().toISOString(), trips: db.trips};
+  const d = new Date(); const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  download(new Blob([JSON.stringify(data, null, 1)], {type: 'application/json'}), `Larson Family Maps backup ${stamp}.json`);
+  toast('Backup downloaded. Keep it somewhere safe.');
+}
+async function restoreBackup(data){
+  if (!data || data.app !== 'larson-family-maps' || !Array.isArray(data.trips)) throw new Error('This isn’t a Larson Family Maps backup file.');
+  const n = data.trips.length;
+  if (!await askConfirm('Restore from backup?', `This adds <b>${n} trip${n === 1 ? '' : 's'}</b> from the backup. <b>Nothing you have now gets deleted or changed.</b>`, 'Restore')) return;
+  const names = new Set(db.trips.map(t => t.name)); let last = null;
+  data.trips.forEach(raw => { const t = normalizeTrip(JSON.parse(JSON.stringify(raw))); t.id = uid(); if (names.has(t.name)) t.name += ' (restored)'; db.trips.push(t); last = t; });
+  if (last) switchTrip(last.id);
+  toast(`Restored ${n} trip${n === 1 ? '' : 's'}.`);
+}
+
+/* =========================================================
+   TRIP PLAN  (Word document + plain text)
+   ========================================================= */
+function planData(){
+  const t = trip(); const st = routeStats(t); const days = computeDays(t, st);
+  return {t, st, days};
+}
+function dayDateLong(d){ return d.date ? d.date.toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}) : ''; }
+async function makeDoc(btn){
+  const {t, st, days} = planData();
+  if (t.route.length < 2) { toast('Make a route first (Step 2).'); return; }
+  if (st.pending) { toast('Still loading some driving times. Try again in a few seconds.'); return; }
+  const old = btn && btn.innerHTML; if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>Making the document…'; }
+  try {
+    await loadScript(DOCX_URL);
+    const {Document, Packer, Paragraph, TextRun, HeadingLevel, ExternalHyperlink} = window.docx;
+    const C = [];
+    const P = (runs, o = {}) => C.push(new Paragraph(Object.assign({children: Array.isArray(runs) ? runs : [new TextRun(String(runs))]}, o)));
+    P([new TextRun({text: t.name, bold: true})], {heading: HeadingLevel.TITLE});
+    const range = days[0].date ? `${days[0].date.toLocaleDateString(undefined, {month: 'long', day: 'numeric'})} – ${days[days.length - 1].date.toLocaleDateString(undefined, {month: 'long', day: 'numeric', year: 'numeric'})}` : '';
+    P([new TextRun({text: [range, `${days.length} day${days.length === 1 ? '' : 's'}`, `${t.route.length} stops`, `${milesWord(st.d)}`, `about ${hrsWord(st.s)} of driving`].filter(Boolean).join('  ·  '), color: '555555'})], {spacing: {after: 300}});
+    if (st.errors) P([new TextRun({text: `Note: ${st.errors} drive${st.errors === 1 ? '' : 's'} couldn’t be found and ${st.errors === 1 ? 'is' : 'are'} not included in the totals.`, italics: true, color: 'B00020'})]);
+    for (const d of days) {
+      const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
+      P([new TextRun(`Day ${d.n}: ${from}${from !== to ? ' to ' + to : ''}`)], {heading: HeadingLevel.HEADING_1, spacing: {before: 360}});
+      if (d.date) P([new TextRun({text: dayDateLong(d), bold: true})]);
+      P([new TextRun({text: `${milesWord(d.d)}  ·  about ${hrsWord(d.s)} of driving`, color: '444444'})]);
+      if (d.ferry) P([new TextRun({text: `Includes a ferry crossing: ${milesWord(d.ferry.d)}, about ${hrsWord(d.ferry.t)} on the water (plus boarding time).`, color: '0369A1'})]);
+      P([new TextRun({text: 'Stops', bold: true})], {spacing: {before: 160}});
+      d.idx.forEach((i, k) => {
+        const p = pinById(t.route[i].pinId); const pl = pinLabel(p);
+        const lead = k === 0 ? (d.n === 1 ? 'Start: ' : 'Leave: ') : (k === d.idx.length - 1 ? (i === t.route.length - 1 ? 'Trip ends: ' : 'Overnight: ') : '');
+        P([new TextRun({text: lead, bold: true}), new TextRun({text: p.name, bold: true}), ...(pl ? [new TextRun({text: `  (${pl})`, color: '666666'})] : [])], {bullet: {level: 0}, spacing: {before: 80}});
+        if (p.notes) p.notes.split('\n').filter(x => x.trim()).forEach(line => P([new TextRun({text: line, color: '333333'})], {indent: {left: 720}}));
+        p.links.forEach(l => P([new ExternalHyperlink({children: [new TextRun({text: l.url, style: 'Hyperlink'})], link: l.url})], {indent: {left: 720}}));
+        if (k < d.idx.length - 1) { const l = st.legs[i]; const x = l && l.info; const next = stopTitle(t, d.idx[k + 1]);
+          P([new TextRun({text: x && x.status === 'ok' ? `→ Drive ${milesWord(x.d)}, about ${hrsWord(x.t)}, to ${next}${x.ferry ? ' (includes a ferry)' : ''}` : `→ Drive to ${next} (driving time unknown)`, italics: true, color: '15803D'})], {indent: {left: 720}, spacing: {before: 40}}); }
+      });
+    }
+    const inRoute = new Set(t.route.map(s => s.pinId)); const others = t.pins.filter(p => !inRoute.has(p.id));
+    if (others.length) {
+      P([new TextRun('Other saved places (not on the route)')], {heading: HeadingLevel.HEADING_1, spacing: {before: 400}});
+      t.layers.forEach(l => { const ps = others.filter(p => p.layerId === l.id); if (!ps.length) return; if (t.layers.length > 1) P([new TextRun({text: l.name, bold: true})], {spacing: {before: 160}});
+        ps.forEach(p => { const pl = pinLabel(p); P([new TextRun({text: p.name}), ...(pl ? [new TextRun({text: `  (${pl})`, color: '666666'})] : []), ...(p.notes ? [new TextRun({text: ` — ${p.notes.replace(/\s*\n\s*/g, ' ')}`, color: '555555'})] : [])], {bullet: {level: 0}}); }); });
+    }
+    P([new TextRun({text: `Made with Larson Family Maps on ${new Date().toLocaleDateString()}. Drive times are estimates without traffic or stops.`, size: 18, color: '888888', italics: true})], {spacing: {before: 400}});
+    const doc = new Document({creator: 'Larson Family Maps', title: t.name, styles: {default: {document: {run: {font: 'Calibri', size: 23}}}}, sections: [{properties: {page: {margin: {top: 1080, bottom: 1080, left: 1080, right: 1080}}}, children: C}]});
+    const blob = await Packer.toBlob(doc);
+    download(blob, `${safeName(t.name)} - Trip Plan.docx`);
+    toast('Trip plan downloaded. Look in your Downloads folder.');
+  } catch (err) { console.error(err); toast('Couldn’t make the Word file. Check your internet connection and try again.', {err: true, ms: 7000}); }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
+}
+function planText(){
+  const {t, st, days} = planData(); const L = [];
+  L.push(t.name.toUpperCase()); L.push(`${days.length} day${days.length === 1 ? '' : 's'} · ${t.route.length} stops · ${milesWord(st.d)} · about ${hrsWord(st.s)} of driving`); L.push('');
+  for (const d of days) {
+    const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
+    L.push(`Day ${d.n}: ${from}${from !== to ? ' to ' + to : ''}${d.date ? ' (' + dayDateLong(d) + ')' : ''}`);
+    L.push(`  ${milesWord(d.d)} · about ${hrsWord(d.s)} of driving${d.ferry ? ' · includes a ferry' : ''}`);
+    d.idx.forEach((i, k) => { const p = pinById(t.route[i].pinId); L.push(`  • ${p.name}${pinLabel(p) ? ' (' + pinLabel(p) + ')' : ''}`); if (p.notes) L.push('      ' + p.notes.replace(/\n+/g, ' / ')); p.links.forEach(l => L.push('      ' + l.url)); if (k < d.idx.length - 1) { const x = st.legs[i]?.info; if (x && x.status === 'ok') L.push(`      → ${miles(x.d)}, ${hrs(x.t)}`); } });
+    L.push('');
+  }
+  return L.join('\n');
+}
+async function copyText(){
+  const txt = planText();
+  try { await navigator.clipboard.writeText(txt); toast('Trip plan copied. Paste it into an email, note or document.'); }
+  catch { modal({title: 'Trip plan', html: `<p>Select all of this text and copy it:</p><textarea class="input" style="min-height:300px;font-size:14px" readonly>${esc(txt)}</textarea>`, buttons: [{label: 'Close', kind: 'blue'}]}); }
+}
+
+/* =========================================================
+   HELP + WELCOME
+   ========================================================= */
+function stepsHtml(){
+  return `<div class="welcome-steps">
+    <div><span class="n" style="background:var(--pins)">1</span><span><b>Pins.</b> Drop every place you might want to see. Press <b>Add pins</b> and click the map, or search for a place. Click any pin to name it, add notes and links, and pick an icon and color.<p></p></span></div>
+    <div><span class="n" style="background:var(--route)">2</span><span><b>Route.</b> Connect the dots: click pins in the order you’ll visit them. You’ll see the miles and driving time for every drive. Drag stops to change the order, or press <b>Suggest order</b>.</span></div>
+    <div><span class="n" style="background:var(--days)">3</span><span><b>Days.</b> Press <b>End day</b> on the stops where you’ll sleep, or let the site split the trip for you. Then download the day-by-day trip plan.</span></div></div>`;
+}
+function showWelcome(){
+  modal({title: 'Welcome to Larson Family Maps', html: `<p>Plan a trip in three steps:</p>${stepsHtml()}<p>Everything saves automatically in this browser. Made a mistake? Press <i class="fa-solid fa-rotate-left"></i> Undo at the top.</p>`, buttons: [{label: 'Let’s go', kind: 'green'}]}).then(() => { prefs.seenWelcome = true; savePrefs(); });
+}
+function showHelp(){
+  modal({title: 'How to use Larson Family Maps', wide: true, html: `${stepsHtml()}
+    <h3 style="margin:18px 0 6px">Bring in a trip from Google My Maps</h3>
+    <ol><li>On a computer, go to <b>google.com/maps/d</b> and open the map.</li><li>Click the <b>three dots ⋮</b> next to the map’s name.</li><li>Click <b>Export to KML/KMZ</b>.</li><li>Choose <b>Entire map</b>, then click <b>Download</b>.</li><li>Here, click <b>☰</b> (top right), then <b>Import a Google My Map</b>, and pick the file. You can also drag the file onto this page.</li></ol>
+    <h3 style="margin:18px 0 6px">Measure a distance</h3><p>Click <b>Measure</b> on the map, then click two or more spots. You get the straight-line distance and the driving distance and time. Nothing is saved.</p>
+    <h3 style="margin:18px 0 6px">Where your trips are saved</h3><p>Trips save in <b>this browser on this device</b>. Use <b>☰ → Download a backup</b> now and then, and keep the file somewhere safe. Clearing your browser’s website data would erase trips that aren’t backed up.</p>`,
+    buttons: [{label: 'Got it', kind: 'blue'}]});
+}
+
+/* ---------- mobile panel toggle ---------- */
+function updateHandle(){ const c = $('#panel').classList.contains('collapsed'); $('#mobHandle').innerHTML = c ? '<i class="fa-solid fa-chevron-up"></i><span>Show list</span>' : '<i class="fa-solid fa-chevron-down"></i><span>Hide list</span>'; }
+$('#mobHandle').onclick = () => { $('#panel').classList.toggle('collapsed'); updateHandle(); setTimeout(() => map.invalidateSize(), 220); };
+window.addEventListener('resize', () => map.invalidateSize());
+
+/* =========================================================
+   START
+   ========================================================= */
+load();
+ui.step = ['pins', 'route', 'days'].includes(prefs.step) ? prefs.step : 'pins';
+setBasemap(prefs.basemap);
+render();
+if (trip().pins.length) fitTrip();
+if (!storageOK) toast('This browser is blocking saving. Your trips won’t be kept after you close the page.', {err: true, ms: 12000});
+if (!prefs.seenWelcome) showWelcome();
+</script>
+</body>
+</html>
