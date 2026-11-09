@@ -157,6 +157,7 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .sw{width:40px;height:40px;border-radius:50%;border:3px solid transparent;background:var(--c);display:grid;place-items:center;color:var(--fg);font-size:15px;padding:0}
 .sw.on{border-color:#fff;box-shadow:0 0 0 2px var(--c)}
 .icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px}
+.icons.top{grid-template-columns:repeat(5,1fr)}
 .ic{height:48px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);display:grid;place-items:center;font-size:19px;color:var(--muted);padding:0}
 .ic:hover{background:var(--panel3);color:var(--text)}
 .ic.on{background:var(--c);border-color:var(--c);color:var(--fg)}
@@ -283,7 +284,21 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .stay-toggle i{font-size:22px;color:#c4b5fd}
 .stay-box{border:2px solid rgba(168,85,247,.55);border-radius:14px;padding:12px 14px 16px;background:rgba(168,85,247,.07);margin-top:16px}
 .stay-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:700;color:#e9d5ff;font-size:17px}
-.stay-types{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.stay-types{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:12px}
+.stay-types .stay-type{grid-column:span 2}
+.stay-types .stay-type:nth-child(n+4){grid-column:span 3}
+.camp-types{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.camp-types .stay-type{min-height:64px;font-size:14px;padding:9px 4px;text-align:center}
+.checks{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.check{cursor:pointer}
+.check input{position:absolute;opacity:0;pointer-events:none}
+.check span{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:6px 14px;border-radius:999px;border:2px solid var(--line);background:var(--panel2);font-weight:700;font-size:14px}
+.check span i{color:var(--faint)}
+.check span:before{content:"";width:16px;height:16px;border-radius:4px;border:2px solid var(--faint);flex:none}
+.check input:checked + span{border-color:var(--doc);background:rgba(168,85,247,.25)}
+.check input:checked + span i{color:#e9d5ff}
+.check input:checked + span:before{background:var(--doc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3 3 7-7' stroke='white' stroke-width='2.5' fill='none'/%3E%3C/svg%3E") center/12px no-repeat;border-color:var(--doc)}
+.check input:focus-visible + span{outline:3px solid #93c5fd;outline-offset:2px}
 .stay-type{display:flex;flex-direction:column;align-items:center;gap:7px;padding:13px 6px;border-radius:12px;border:2px solid var(--line);background:var(--panel2);font-weight:700;font-size:15px;min-height:76px}
 .stay-type i{font-size:22px;color:#c4b5fd}
 .stay-type.on{border-color:var(--doc);background:rgba(168,85,247,.25)}
@@ -421,14 +436,28 @@ const ICON_SET = new Set(ICONS.map(i => i[0]));
 /* each day of the trip gets its own color: [on the map, in print] */
 const DAY_COLORS = [['#22c55e','#15803d'],['#38bdf8','#0369a1'],['#f59e0b','#b45309'],['#f472b6','#be185d'],['#a78bfa','#6d28d9'],['#2dd4bf','#0f766e'],['#fb923c','#c2410c'],['#a3e635','#4d7c0f'],['#f87171','#b91c1c'],['#818cf8','#4338ca']];
 const dayColor = (seg, print) => DAY_COLORS[seg % DAY_COLORS.length][print ? 1 : 0];
-const STAY_TYPES = {hotel: {label: 'Hotel / motel', icon: 'hotel'}, airbnb: {label: 'Airbnb / rental', icon: 'house'}, family: {label: 'Friends / family', icon: 'people-roof'}, other: {label: 'Other', icon: 'bed'}};
-const STAY_ICONS = new Set(Object.values(STAY_TYPES).map(x => x.icon).concat(['location-dot']));
+const STAY_TYPES = {hotel: {label: 'Hotel / motel', icon: 'hotel'}, airbnb: {label: 'Airbnb / rental', icon: 'house'}, camping: {label: 'Camping', icon: 'campground'}, family: {label: 'Friends / family', icon: 'people-roof'}, other: {label: 'Other', icon: 'bed'}};
+const CAMP_TYPES = {campground: {label: 'Campground', icon: 'campground'}, remote: {label: 'Remote site', icon: 'tent'}, public: {label: 'Public / BLM land', icon: 'tree'}};
+const AMENITIES = [['electric', 'Electric', 'plug'], ['water', 'Drinking water', 'faucet-drip'], ['toilets', 'Toilets', 'toilet'], ['showers', 'Showers', 'shower'], ['garbage', 'Garbage disposal', 'dumpster'], ['fires', 'Fires allowed', 'fire']];
+const STAY_ICONS = new Set(Object.values(STAY_TYPES).map(x => x.icon).concat(Object.values(CAMP_TYPES).map(x => x.icon), ['location-dot']));
 function normStay(x){
   if (!x || typeof x !== 'object' || !STAY_TYPES[x.type]) return null;
   const f = k => String(x[k] ?? '');
-  return {type: x.type, checkin: f('checkin'), checkout: f('checkout'), conf: f('conf'), paid: f('paid'), due: f('due'), address: f('address'), phone: f('phone'), notes: f('notes'), photos: Array.isArray(x.photos) ? x.photos.filter(ph => ph && typeof ph.id === 'string') : []};
+  const am = x.amen && typeof x.amen === 'object' ? x.amen : {};
+  return {type: x.type, camp: CAMP_TYPES[x.camp] ? x.camp : 'campground', site: f('site'), checkin: f('checkin'), checkout: f('checkout'), conf: f('conf'), paid: f('paid'), due: f('due'), phone: f('phone'), notes: f('notes'),
+    reward: !!x.reward, points: !!x.points, amen: Object.fromEntries(AMENITIES.map(([k]) => [k, !!am[k]])),
+    photos: Array.isArray(x.photos) ? x.photos.filter(ph => ph && typeof ph.id === 'string') : []};
 }
-function parseMoney(v){ const n = parseFloat(String(v || '').replace(/[^0-9.]/g, '')); return isFinite(n) ? n : null; }
+/* which boxes each kind of stay shows */
+function stayShows(s){
+  if (s.type === 'hotel' || s.type === 'airbnb') return {times: true, conf: true, money: true, phone: true, perks: true};
+  if (s.type === 'camping') { const paid = s.camp !== 'public'; return {times: paid, conf: paid, money: paid, site: paid, amen: true}; }
+  return {};
+}
+function stayLabel(s){ return s.type === 'camping' ? 'Camping · ' + CAMP_TYPES[s.camp].label : STAY_TYPES[s.type].label; }
+function stayNotesLabel(s){ return s.type === 'hotel' || s.type === 'airbnb' ? 'Check-in details' : 'Notes'; }
+function stayAmenList(s){ return AMENITIES.filter(([k]) => s.amen[k]).map(([, l]) => l.toLowerCase()); }
+function parseMoney(v){ const n = parseFloat(String(v ?? '').replace(/[^0-9.]/g, '')); return isFinite(n) ? n : null; }
 function money(v){ const n = parseMoney(v); if (n === null) return String(v || '').trim(); return '$' + n.toLocaleString(undefined, {minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2}); }
 const STATE_ABBR = {"Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA","Colorado":"CO","Connecticut":"CT","Delaware":"DE","Florida":"FL","Georgia":"GA","Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA","Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD","Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO","Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ","New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT","Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY","District of Columbia":"DC","Puerto Rico":"PR",
  "Alberta":"AB","British Columbia":"BC","Manitoba":"MB","New Brunswick":"NB","Newfoundland and Labrador":"NL","Nova Scotia":"NS","Ontario":"ON","Prince Edward Island":"PE","Quebec":"QC","Québec":"QC","Saskatchewan":"SK","Northwest Territories":"NT","Nunavut":"NU","Yukon":"YT"};
@@ -471,7 +500,7 @@ function normalizeTrip(t){
   if (!Array.isArray(t.pins)) t.pins = [];
   const lids = new Set(t.layers.map(l => l.id));
   t.pins = t.pins.filter(p => p && isFinite(p.lat) && isFinite(p.lng));
-  t.pins.forEach(p => { p.id ||= uid(); p.name = String(p.name ?? 'Pin'); p.notes = String(p.notes || ''); p.links = Array.isArray(p.links) ? p.links.filter(l => l && l.url) : []; if (!/^#[0-9a-f]{6}$/i.test(p.color||'')) p.color = DEFAULT_COLOR; if (!ICON_SET.has(p.icon)) p.icon = 'location-dot'; if (!lids.has(p.layerId)) p.layerId = t.layers[0].id; p.stay = normStay(p.stay); });
+  t.pins.forEach(p => { p.id ||= uid(); p.name = String(p.name ?? 'Pin'); p.notes = String(p.notes || ''); p.links = Array.isArray(p.links) ? p.links.filter(l => l && l.url) : []; if (!/^#[0-9a-f]{6}$/i.test(p.color||'')) p.color = DEFAULT_COLOR; if (!ICON_SET.has(p.icon)) p.icon = 'location-dot'; if (!lids.has(p.layerId)) p.layerId = t.layers[0].id; p.address = String(p.address || ''); p.poi = !!p.poi; if (p.stay && p.stay.address && !p.address) p.address = String(p.stay.address); p.stay = normStay(p.stay); });
   const pids = new Set(t.pins.map(p => p.id));
   t.route = (Array.isArray(t.route) ? t.route : []).filter(s => s && pids.has(s.pinId));
   t.route.forEach(s => { s.sid ||= uid(); s.overnight = !!s.overnight; s.nights = clamp(Math.round(Number(s.nights) || 1), 1, 30); if (typeof s.sugFrac !== 'number') delete s.sugFrac; });
@@ -536,7 +565,7 @@ function redo(){ const h = H(); if (!h.redo.length) return; const e = h.redo.pop
 /* =========================================================
    UI STATE
    ========================================================= */
-const ui = {sugs: [], sugBusy: false, stayPick: false, scrollToStay: false, step: 'pins', mode: null, editorPinId: null, selectedPinId: null, filter: '', collapsed: new Set(), sorting: false, panelDirty: false};
+const ui = {moreIcons: false, sugs: [], sugBusy: false, stayPick: false, scrollToStay: false, step: 'pins', mode: null, editorPinId: null, selectedPinId: null, filter: '', collapsed: new Set(), sorting: false, panelDirty: false};
 
 /* ---------- toasts ---------- */
 function toast(msg, o = {}){
@@ -727,7 +756,7 @@ function onPinClick(id){
    ========================================================= */
 function addPinAt(ll, opts = {}){
   const t = trip(); const id = uid();
-  const p = {id, name: opts.name || 'New pin', lat: +ll.lat.toFixed(6), lng: +ll.lng.toFixed(6), color: opts.color || lastStyle.color, icon: opts.icon || lastStyle.icon, notes: '', links: [], layerId: t.activeLayerId, place: opts.place || null, autoName: !opts.name};
+  const p = {id, name: opts.name || 'New pin', lat: +ll.lat.toFixed(6), lng: +ll.lng.toFixed(6), color: opts.color || lastStyle.color, icon: opts.icon || lastStyle.icon, notes: '', links: [], layerId: t.activeLayerId, place: opts.place || null, autoName: !opts.name, address: opts.address || '', poi: !!opts.poi, stay: null};
   const layer = layerById(t.activeLayerId); if (layer && !layer.visible) layer.visible = true;
   change('Add pin', t => { t.pins.push(p); if (opts.toRoute) t.route.push({sid: uid(), pinId: id, overnight: false}); });
   if (!p.place) fillPlace(id);
@@ -744,12 +773,12 @@ async function runPlaceQueue(){
   while (placeQueue.length) {
     const id = placeQueue.shift(); const t = trip(); const p = t.pins.find(x => x.id === id); if (!p) continue;
     try {
-      const r = await fetchJSON(`${NOMINATIM}/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lng}&zoom=10&addressdetails=1&accept-language=en`, 10000);
+      const r = await fetchJSON(`${NOMINATIM}/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1&accept-language=en`, 10000);
       if (!r.ok && r.status !== 404) throw new Error('reverse ' + r.status);
       const a = (r.json && r.json.address) || {};
       const place = {city: a.city || a.town || a.village || a.hamlet || a.municipality || a.county || '', state: a.state || a.province || a.region || '', country: a.country || '', cc: (a.country_code || '').toUpperCase()};
       const q = trip().pins.find(x => x.id === id);
-      if (q) { q.place = place; if (q.autoName && q.name === 'New pin' && placeShort(place)) q.name = placeShort(place); scheduleSave(); renderMap(); if (!ui.editorPinId || ui.editorPinId === id) renderPanelSoft(); }
+      if (q) { q.place = place; if (!q.address && a.house_number && a.road) q.address = fmtAddress(a.house_number, a.road, place.city, place.state, a.postcode, place.cc, place.country); if (q.autoName && q.name === 'New pin' && placeShort(place)) q.name = placeShort(place); scheduleSave(); renderMap(); if (!ui.editorPinId || ui.editorPinId === id) renderPanelSoft(); }
     } catch (e) { /* offline: leave blank, will retry later */ placeTried.delete(id); }
     await sleep(1100);
   }
@@ -768,6 +797,19 @@ function placeShort(pl){
   return [pl.city || pl.state, pl.country].filter(Boolean).join(', ');
 }
 function pinPlace(p){ return placeShort(p.place); }
+function fmtAddress(hn, street, city, state, zip, cc, country){
+  const st = state ? ((cc === 'US' || cc === 'CA') ? (STATE_ABBR[state] || state) : state) : '';
+  const line1 = [hn, street].filter(Boolean).join(' ');
+  const line2 = [city, [st, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  return [line1, line2, cc && cc !== 'US' ? country : ''].filter(Boolean).join(', ');
+}
+function gmapsUrl(o){
+  let q;
+  if (o.address) q = (o.poi && o.name && !o.address.startsWith(o.name) ? o.name + ', ' : '') + o.address;
+  else if (o.poi && o.name) q = o.name + (placeShort(o.place) ? ', ' + placeShort(o.place) : '');
+  else q = `${(+o.lat).toFixed(6)},${(+o.lng).toFixed(6)}`;
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+}
 function pinLabel(p){ const pl = pinPlace(p); return pl && pl !== p.name ? pl : ''; }
 
 function deletePin(id){
@@ -993,10 +1035,12 @@ function computeDays(t, stats){
   days.forEach((d, k) => { d.n = k + 1; d.date = null; if (base) { const x = new Date(base); x.setDate(x.getDate() + k); d.date = x; } });
   return days;
 }
+
 function lodgingTotals(t){
-  const seen = new Set(); let paid = 0, due = 0, any = false;
-  t.route.forEach(s => { const p = pinById(s.pinId); if (!p || !p.stay || seen.has(p.id)) return; seen.add(p.id); const a = parseMoney(p.stay.paid), b = parseMoney(p.stay.due); if (a !== null) { paid += a; any = true; } if (b !== null) { due += b; any = true; } });
-  return any ? `${money(paid)} paid · ${money(due)} due on arrival` : '';
+  const seen = new Set(); let paid = 0, due = 0, any = false, reward = 0, points = 0;
+  t.route.forEach(s => { const p = pinById(s.pinId); if (!p || !p.stay || seen.has(p.id)) return; seen.add(p.id); const sh = stayShows(p.stay); if (sh.money) { const a = parseMoney(p.stay.paid), b = parseMoney(p.stay.due); if (a !== null) { paid += a; any = true; } if (b !== null) { due += b; any = true; } } if (sh.perks && p.stay.reward) reward++; if (sh.perks && p.stay.points) points++; });
+  const out = []; if (any) out.push(`${money(paid)} paid · ${money(due)} due on arrival`); if (reward) out.push(`${reward} reward night${reward === 1 ? '' : 's'}`); if (points) out.push(`${points} paid with points`);
+  return out.join(' · ');
 }
 function stopTitle(t, i){ const p = pinById(t.route[i].pinId); return p ? p.name : '?'; }
 function stopTown(t, i){ const p = pinById(t.route[i].pinId); if (!p) return '?'; return pinPlace(p) || p.name; }
@@ -1130,7 +1174,7 @@ function pinsView(){
 function layersHtml(t, nums, f){
   let html = ''; let any = false;
   for (const l of t.layers) {
-    const pins = t.pins.filter(p => p.layerId === l.id && (!f || (p.name + ' ' + p.notes + ' ' + pinPlace(p)).toLowerCase().includes(f)));
+    const pins = t.pins.filter(p => p.layerId === l.id && (!f || (p.name + ' ' + p.notes + ' ' + pinPlace(p) + ' ' + p.address).toLowerCase().includes(f)));
     if (f && !pins.length) continue; any = true;
     const active = l.id === t.activeLayerId; const total = t.pins.filter(p => p.layerId === l.id).length;
     const collapsed = ui.collapsed.has(l.id) && !f;
@@ -1143,7 +1187,7 @@ function layersHtml(t, nums, f){
       </div><div class="layer-pins">`;
     for (const p of pins) {
       const n = nums.get(p.id);
-      html += `<button class="pin-row${p.id === ui.selectedPinId ? ' sel' : ''}" data-act="open-pin" data-id="${p.id}"><span class="dot" style="--c:${p.color};--fg:${fgFor(p.color)}"><i class="fa-solid fa-${p.icon}"></i></span><span class="txt"><b>${esc(p.name)}</b>${pinLabel(p) ? `<small>${esc(pinLabel(p))}</small>` : ''}</span>${n ? `<span class="stopnum" title="Stop number in the route">#${n[0]}</span>` : ''}</button>`;
+      html += `<button class="pin-row${p.id === ui.selectedPinId ? ' sel' : ''}" data-act="open-pin" data-id="${p.id}"><span class="dot" style="--c:${p.color};--fg:${fgFor(p.color)}"><i class="fa-solid fa-${p.icon}"></i></span><span class="txt"><b>${esc(p.name)}</b>${p.address ? `<small>${esc(p.address)}</small>` : pinLabel(p) ? `<small>${esc(pinLabel(p))}</small>` : ''}</span>${n ? `<span class="stopnum" title="Stop number in the route">#${n[0]}</span>` : ''}</button>`;
     }
     if (!pins.length) html += `<div class="hint" style="padding:6px 14px;margin:0;border-top:1px solid var(--line)">No pins in this layer yet.</div>`;
     html += `</div></div>`;
@@ -1254,18 +1298,22 @@ function daysView(){
     });
     html += `</ol></div>`;
   });
-  html += `<div style="display:grid;gap:8px;margin-top:18px"><button class="btn big purple" data-act="make-doc"><i class="fa-solid fa-file-word"></i>Download trip plan (Word)</button>
-    <button class="btn ghost" data-act="copy-text"><i class="fa-solid fa-copy"></i>Copy trip plan as text</button></div>
-    <p class="hint" style="font-size:13px">The Word file includes a small map for each day and all your stay details. It opens in Microsoft Word, Pages and Google Docs.</p>`;
+  html += `<div style="display:grid;gap:8px;margin-top:18px"><button class="btn big purple" data-act="make-doc"><i class="fa-solid fa-file-export"></i>Export trip itinerary</button>
+    <button class="btn ghost" data-act="copy-text"><i class="fa-solid fa-copy"></i>Copy itinerary as text</button></div>
+    <p class="hint" style="font-size:13px">The exported itinerary is a Word file with a map for each day and all your stay details. It opens in Microsoft Word, Pages and Google Docs.</p>`;
   return html;
 }
 function stayChip(p, offerAdd){
   if (!p.stay) return offerAdd ? `<button class="stay-chip add" data-act="edit-stay" data-id="${p.id}"><i class="fa-solid fa-plus"></i>Add where we’re staying</button>` : '';
-  const ty = STAY_TYPES[p.stay.type]; const bits = [ty.label];
-  if (p.stay.checkin) bits.push('check-in ' + p.stay.checkin);
-  if (p.stay.conf) bits.push('#' + p.stay.conf);
-  if (parseMoney(p.stay.due)) bits.push(money(p.stay.due) + ' due');
-  return `<button class="stay-chip" data-act="edit-stay" data-id="${p.id}" title="See or edit the stay details"><i class="fa-solid fa-${ty.icon}"></i>${esc(bits.join(' · '))}</button>`;
+  const s = p.stay; const sh = stayShows(s); const bits = [s.type === 'camping' ? CAMP_TYPES[s.camp].label : STAY_TYPES[s.type].label];
+  if (sh.site && s.site) bits.push('site ' + s.site);
+  if (sh.times && s.checkin) bits.push('check-in ' + s.checkin);
+  if (sh.conf && s.conf) bits.push('#' + s.conf);
+  if (sh.money && parseMoney(s.due)) bits.push(money(s.due) + ' due');
+  if (sh.perks && s.reward) bits.push('reward night');
+  if (sh.perks && s.points) bits.push('points');
+  const icon = s.type === 'camping' ? CAMP_TYPES[s.camp].icon : STAY_TYPES[s.type].icon;
+  return `<button class="stay-chip" data-act="edit-stay" data-id="${p.id}" title="See or edit the stay details"><i class="fa-solid fa-${icon}"></i>${esc(bits.join(' · '))}</button>`;
 }
 function suggestionsHtml(){
   const sugs = liveSugs(); if (!sugs.length && !ui.sugBusy) return '';
@@ -1302,12 +1350,15 @@ function renderEditor(force){
   <div class="ed-body">
     <label class="label" for="edName">Name</label>
     <input class="input name-input" id="edName" value="${esc(p.name)}" maxlength="140" autocomplete="off">
+    <label class="label" for="edAddress">Address</label>
+    <input class="input" id="edAddress" value="${esc(p.address)}" placeholder="Street address (optional)" autocomplete="off">
     <div class="place-line" id="edPlace">${edPlaceHtml(p)}</div>
+    <a class="btn ghost" id="edGmaps" href="${esc(gmapsUrl(p))}" target="_blank" rel="noopener" style="width:100%;margin-top:10px;text-decoration:none"><i class="fa-solid fa-arrow-up-right-from-square"></i>Open in Google Maps</a>
     ${staySectionHtml(p)}
     <label class="label">Color</label>
     <div class="swatches">${COLORS.map(([c, nm]) => `<button class="sw${c.toLowerCase() === p.color.toLowerCase() ? ' on' : ''}" style="--c:${c};--fg:${fgFor(c)}" data-act="set-color" data-c="${c}" title="${nm}" aria-label="${nm}">${c.toLowerCase() === p.color.toLowerCase() ? '<i class="fa-solid fa-check"></i>' : ''}</button>`).join('')}${knownColor ? '' : `<button class="sw on" style="--c:${p.color};--fg:${fgFor(p.color)}" title="Imported color"><i class="fa-solid fa-check"></i></button>`}</div>
     <label class="label">Icon</label>
-    <div class="icons" style="--c:${p.color};--fg:${fgFor(p.color)}">${ICONS.map(([ic, nm]) => `<button class="ic${ic === p.icon ? ' on' : ''}" data-act="set-icon" data-ic="${ic}" title="${nm}" aria-label="${nm}"><i class="fa-solid fa-${ic}"></i></button>`).join('')}</div>
+    ${iconPickerHtml(p)}
     <label class="label" for="edNotes">Notes</label>
     <textarea class="input" id="edNotes" placeholder="Hours, tips, what to order, reservation number…">${esc(p.notes)}</textarea>
     <label class="label">Web links</label>
@@ -1326,25 +1377,31 @@ function renderEditor(force){
 function staySectionHtml(p){
   const s = p.stay;
   const types = cur => `<div class="stay-types">${Object.entries(STAY_TYPES).map(([k, v]) => `<button class="stay-type${cur === k ? ' on' : ''}" data-act="stay-type" data-k="${k}"><i class="fa-solid fa-${v.icon}"></i>${v.label}</button>`).join('')}</div>`;
-  if (!s && !ui.stayPick) return `<div id="staySection" style="margin-top:16px"><button class="btn stay-toggle" data-act="stay-on"><i class="fa-solid fa-bed"></i><span>We’re staying here overnight<br><small style="font-weight:400;color:var(--muted)">Add check-in details, confirmation number, payments and photos</small></span></button></div>`;
+  if (!s && !ui.stayPick) return `<div id="staySection" style="margin-top:16px"><button class="btn stay-toggle" data-act="stay-on"><i class="fa-solid fa-bed"></i><span>We’re staying here overnight<br><small style="font-weight:400;color:var(--muted)">Hotel, Airbnb, camping or friends: check-in details, confirmation, payments and photos</small></span></button></div>`;
   if (!s) return `<div class="stay-box" id="staySection"><div class="stay-head"><span><i class="fa-solid fa-bed"></i> What kind of place is it?</span><button class="btn sm ghost" data-act="stay-cancel">Cancel</button></div>${types(null)}</div>`;
+  const sh = stayShows(s);
   const f = (id, label, val, ph, extra = '') => `<div><label class="label" for="st_${id}">${label}</label><input class="input" id="st_${id}" data-stay="${id}" value="${esc(val)}" placeholder="${esc(ph)}" autocomplete="off" ${extra}></div>`;
   const m = (id, label, val) => `<div><label class="label" for="st_${id}">${label}</label><div class="money"><span>$</span><input class="input" id="st_${id}" data-stay="${id}" value="${esc(val)}" inputmode="decimal" placeholder="0.00" autocomplete="off"></div></div>`;
-  return `<div class="stay-box" id="staySection">
+  const ck = (attr, k, label, icon, on) => `<label class="check"><input type="checkbox" ${attr}="${k}" ${on ? 'checked' : ''}><span><i class="fa-solid fa-${icon}"></i>${label}</span></label>`;
+  let h = `<div class="stay-box" id="staySection">
     <div class="stay-head"><span><i class="fa-solid fa-bed"></i> Where we’re staying</span><button class="btn sm ghost" data-act="stay-off" title="We’re not staying here"><i class="fa-solid fa-trash-can"></i>Remove</button></div>
-    ${types(s.type)}
-    <div class="two">${f('checkin', 'Check-in', s.checkin, '3:00 PM')}${f('checkout', 'Check-out', s.checkout, '11:00 AM')}</div>
-    ${f('conf', 'Confirmation number', s.conf, 'ABC123456')}
-    <div class="two">${m('paid', 'Already paid', s.paid)}${m('due', 'Due when we arrive', s.due)}</div>
-    ${f('address', 'Address', s.address, 'Street, city')}
-    ${f('phone', 'Phone', s.phone, '(555) 555-5555', 'inputmode="tel"')}
-    <label class="label" for="st_notes">Check-in details</label>
-    <textarea class="input" id="st_notes" data-stay="notes" placeholder="Directions, door or keypad code, Wi-Fi password, parking…">${esc(s.notes)}</textarea>
+    ${types(s.type)}`;
+  if (s.type === 'camping') h += `<div class="camp-types">${Object.entries(CAMP_TYPES).map(([k, v]) => `<button class="stay-type${s.camp === k ? ' on' : ''}" data-act="camp-type" data-k="${k}"><i class="fa-solid fa-${v.icon}"></i>${v.label}</button>`).join('')}</div>`;
+  if (sh.site) h += f('site', 'Site number', s.site, '42');
+  if (sh.times) h += `<div class="two">${f('checkin', 'Check-in', s.checkin, '3:00 PM')}${f('checkout', 'Check-out', s.checkout, '11:00 AM')}</div>`;
+  if (sh.conf) h += f('conf', 'Confirmation number', s.conf, 'ABC123456');
+  if (sh.money) h += `<div class="two">${m('paid', 'Already paid', s.paid)}${m('due', 'Due when we arrive', s.due)}</div>`;
+  if (sh.perks) h += `<div class="checks">${ck('data-stay-check', 'reward', 'Loyalty / reward night', 'gift', s.reward)}${ck('data-stay-check', 'points', 'Paid with points', 'coins', s.points)}</div>`;
+  if (sh.amen) h += `<label class="label">This spot has</label><div class="checks">${AMENITIES.map(([k, l, ic]) => ck('data-stay-amen', k, l, ic, s.amen[k])).join('')}</div>`;
+  if (sh.phone) h += f('phone', 'Phone', s.phone, '(555) 555-5555', 'inputmode="tel"');
+  const ph = s.type === 'hotel' || s.type === 'airbnb' ? 'Directions, door or keypad code, Wi-Fi password, parking…' : s.type === 'camping' ? 'Directions, road conditions, gate code, rules, what to bring…' : 'Anything we need to know: directions, door code, who to call…';
+  h += `<label class="label" for="st_notes">${stayNotesLabel(s)}</label><textarea class="input" id="st_notes" data-stay="notes" placeholder="${ph}">${esc(s.notes)}</textarea>
     <label class="label">Photos and screenshots</label>
-    <div class="photos">${s.photos.map((ph, i) => `<div class="photo"><img data-photo="${esc(ph.id)}" alt="Photo ${i + 1}" data-act="view-photo" data-id="${esc(ph.id)}"><button data-act="del-photo" data-i="${i}" title="Remove photo" aria-label="Remove photo"><i class="fa-solid fa-xmark"></i></button></div>`).join('')}</div>
+    <div class="photos">${s.photos.map((pp, i) => `<div class="photo"><img data-photo="${esc(pp.id)}" alt="Photo ${i + 1}" data-act="view-photo" data-id="${esc(pp.id)}"><button data-act="del-photo" data-i="${i}" title="Remove photo" aria-label="Remove photo"><i class="fa-solid fa-xmark"></i></button></div>`).join('')}</div>
     <button class="btn purple" style="width:100%" data-act="add-photo"><i class="fa-solid fa-camera"></i>Add a photo or screenshot</button>
-    <p class="hint" style="font-size:13px;margin-bottom:0">All of this goes into the Word trip plan.</p>
+    <p class="hint" style="font-size:13px;margin-bottom:0">All of this goes into the exported trip itinerary.</p>
   </div>`;
+  return h;
 }
 
 /* ---------- photos: stored in IndexedDB (lots of room), referenced by id ---------- */
@@ -1382,6 +1439,16 @@ async function viewPhoto(id){ const u = await photoUrl(id); if (!u) { toast('Tha
 function blobToDataURL(b){ return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(b); }); }
 async function cleanupPhotos(){
   try { const used = new Set(); db.trips.forEach(t => t.pins.forEach(p => p.stay && p.stay.photos.forEach(ph => used.add(ph.id)))); const keys = await PhotoDB.keys(); for (const k of keys) if (!used.has(k)) await PhotoDB.del(k); } catch {}
+}
+const TOP_ICONS = ['house', 'star', 'bed', 'hotel', 'tent', 'heart', 'utensils', 'beer-mug-empty', 'person-hiking', 'mountain-sun'];
+function iconPickerHtml(p){
+  const label = ic => (ICONS.find(x => x[0] === ic) || [ic, ic])[1];
+  const btn = ic => `<button class="ic${ic === p.icon ? ' on' : ''}" data-act="set-icon" data-ic="${ic}" title="${esc(label(ic))}" aria-label="${esc(label(ic))}"><i class="fa-solid fa-${ic}"></i></button>`;
+  const top = TOP_ICONS.concat(TOP_ICONS.includes(p.icon) ? [] : [p.icon]);
+  const rest = ICONS.map(x => x[0]).filter(ic => !top.includes(ic));
+  return `<div class="icons top" style="--c:${p.color};--fg:${fgFor(p.color)}">${top.map(btn).join('')}</div>
+    <button class="btn sm ghost" data-act="more-icons" style="width:100%;margin-top:8px"><i class="fa-solid fa-chevron-${ui.moreIcons ? 'up' : 'down'}"></i>${ui.moreIcons ? 'Fewer icons' : `See more icons (${rest.length})`}</button>
+    ${ui.moreIcons ? `<div class="icons top" style="margin-top:8px;--c:${p.color};--fg:${fgFor(p.color)}">${rest.map(btn).join('')}</div>` : ''}`;
 }
 function edPlaceHtml(p){ const pl = pinPlace(p); return `<i class="fa-solid fa-location-crosshairs"></i> ${pl ? esc(pl) + ' · ' : ''}${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`; }
 function renderEditorPlaceOnly(){ const p = ui.editorPinId && pinById(ui.editorPinId); const el = $('#edPlace'); if (p && el) el.innerHTML = edPlaceHtml(p); const nm = $('#edName'); if (p && nm && document.activeElement !== nm && nm.value !== p.name) nm.value = p.name; }
@@ -1428,8 +1495,10 @@ document.addEventListener('click', async e => {
     case 'dismiss-sug': dismissSug(id); break;
     case 'focus-sug': { const s = liveSugs().find(x => x.id === id); if (s) { map.flyTo([s.lat, s.lng], Math.max(map.getZoom(), 8), {duration: .6}); setTimeout(() => sugLayer.eachLayer(m => { const ll = m.getLatLng(); if (ll.lat === s.lat && ll.lng === s.lng) m.openPopup(); }), 700); } break; }
     case 'stay-on': ui.stayPick = true; renderEditor(); break;
+    case 'more-icons': ui.moreIcons = !ui.moreIcons; renderEditor(); break;
     case 'stay-cancel': ui.stayPick = false; renderEditor(); break;
-    case 'stay-type': { const k = el.dataset.k; ui.stayPick = false; change(pinById(ui.editorPinId).stay ? 'Change stay type' : 'Mark as a place to stay', t => { const p = pinById(ui.editorPinId); if (p.stay) p.stay.type = k; else p.stay = normStay({type: k}); if (STAY_ICONS.has(p.icon)) p.icon = STAY_TYPES[k].icon; }); break; }
+    case 'stay-type': { const k = el.dataset.k; ui.stayPick = false; change(pinById(ui.editorPinId).stay ? 'Change stay type' : 'Mark as a place to stay', t => { const p = pinById(ui.editorPinId); if (p.stay) p.stay.type = k; else p.stay = normStay({type: k}); if (STAY_ICONS.has(p.icon)) p.icon = k === 'camping' ? CAMP_TYPES[p.stay.camp].icon : STAY_TYPES[k].icon; }); break; }
+    case 'camp-type': { const k = el.dataset.k; change('Change camping type', t => { const p = pinById(ui.editorPinId); p.stay.camp = k; if (STAY_ICONS.has(p.icon)) p.icon = CAMP_TYPES[k].icon; }); break; }
     case 'stay-off': change('Remove stay details', t => { pinById(ui.editorPinId).stay = null; }); undoToast('Stay details removed'); break;
     case 'add-photo': $('#photoInput').click(); break;
     case 'del-photo': change('Remove photo', t => { pinById(ui.editorPinId).stay.photos.splice(+el.dataset.i, 1); }); undoToast('Picture removed'); break;
@@ -1444,6 +1513,7 @@ document.addEventListener('input', e => {
   if (t.id === 'pinFilter') { ui.filter = t.value; const tr = trip(); $('#layerList').innerHTML = layersHtml(tr, stopNumbers(tr), ui.filter.trim().toLowerCase()); }
   else if (t.id === 'edName') { const v = t.value; change('Rename pin', tr => { const p = pinById(ui.editorPinId); p.name = v; p.autoName = false; }, {key: 'name' + ui.editorPinId, render: 'map'}); }
   else if (t.dataset && t.dataset.stay) { const k = t.dataset.stay, v = t.value; change('Edit stay details', tr => { const p = pinById(ui.editorPinId); if (p && p.stay) p.stay[k] = v; }, {key: 'stay' + k + ui.editorPinId, render: false}); }
+  else if (t.id === 'edAddress') { const v = t.value; change('Edit address', tr => { pinById(ui.editorPinId).address = v; }, {key: 'addr' + ui.editorPinId, render: false}); const g = $('#edGmaps'); if (g) g.href = gmapsUrl(pinById(ui.editorPinId)); }
   else if (t.id === 'edNotes') { const v = t.value; change('Edit notes', tr => { pinById(ui.editorPinId).notes = v; }, {key: 'notes' + ui.editorPinId, render: false}); }
 });
 document.addEventListener('change', e => {
@@ -1451,6 +1521,8 @@ document.addEventListener('change', e => {
   if (t.id === 'edLayer') change('Move to layer', tr => { pinById(ui.editorPinId).layerId = t.value; const l = tr.layers.find(x => x.id === t.value); if (l) l.visible = true; });
   else if (t.id === 'startDate') change('Set start date', tr => { tr.startDate = t.value || ''; });
   else if (t.id === 'maxHours') change('Set daily driving', tr => { tr.maxDayHours = +t.value; });
+  else if (t.dataset && t.dataset.stayCheck) { const k = t.dataset.stayCheck, v = t.checked; change('Edit stay details', tr => { const p = pinById(ui.editorPinId); if (p && p.stay) p.stay[k] = v; }, {render: false}); }
+  else if (t.dataset && t.dataset.stayAmen) { const k = t.dataset.stayAmen, v = t.checked; change('Edit stay details', tr => { const p = pinById(ui.editorPinId); if (p && p.stay) p.stay.amen[k] = v; }, {render: false}); }
 });
 document.addEventListener('keydown', e => {
   if (e.target.id === 'edLink' && e.key === 'Enter') { e.preventDefault(); addLinkFromInput(); }
@@ -1515,55 +1587,128 @@ function renderBanner(){
 }
 
 /* =========================================================
-   SEARCH (Photon)
+   SEARCH — Photon while you type (fast; places and businesses).
+   Press Enter, or "Search everywhere", to also ask Nominatim,
+   which is best at exact street addresses.
    ========================================================= */
-let searchTimer = null, searchSeq = 0, searchResults = [], kbIndex = -1, previewMarker = null;
+let searchTimer = null, fullTimer = null, searchSeq = 0, searchResults = [], kbIndex = -1, previewMarker = null, lastFull = '';
 const sInput = $('#searchInput'), sBox = $('#searchResults');
+const STATE_NAMES = Object.fromEntries(Object.entries(STATE_ABBR).map(([n, a]) => [a, n]));
+const looksLikeAddress = q => /^\d+[a-z]?\s+\S/i.test(q.trim());
+function expandQuery(q){
+  return q.replace(/(,\s*|\s)([A-Za-z]{2})(\s+\d{5}(?:-\d{4})?)?\s*$/, (m, sep, ab, zip) => {
+    const full = STATE_NAMES[ab.toUpperCase()]; if (!full) return m;
+    if (!sep.includes(',') && ab !== ab.toUpperCase()) return m;
+    return `${sep}${full}${zip || ''}`;
+  });
+}
+const norm = s => String(s || '').toLowerCase().replace(/\bst\.?\s+/g, 'saint ').replace(/\bmt\.?\s+/g, 'mount ').replace(/\bft\.?\s+/g, 'fort ').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const PLACE_KINDS = ['city', 'town', 'village', 'hamlet', 'municipality', 'locality', 'borough', 'suburb'];
+function fromPhoton(f){
+  const pr = f.properties; const pl = photonPlace(pr); const isPlace = pr.osm_key === 'place' || pr.osm_key === 'boundary';
+  const street = [pr.housenumber, pr.street].filter(Boolean).join(' ');
+  const name = pr.name || street || placeShort(pl) || 'Place';
+  const address = pr.street ? fmtAddress(pr.housenumber, pr.street, pl.city, pl.state, pr.postcode, pl.cc, pl.country) : '';
+  const sub = isPlace ? [pr.state, pr.country].filter(x => x && x !== name).join(', ') : (address && address !== name ? address : placeShort(pl));
+  return {name, sub, address, lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], place: pl, kind: pr.osm_value || '', key: pr.osm_key || '', extent: pr.extent, poi: !!pr.name && !isPlace, hasNumber: !!pr.housenumber};
+}
+function fromNominatim(r){
+  const a = r.address || {};
+  const city = a.city || a.town || a.village || a.hamlet || a.municipality || a.county || '';
+  const pl = {city, state: a.state || a.province || a.region || '', country: a.country || '', cc: (a.country_code || '').toUpperCase()};
+  const road = a.road || a.pedestrian || a.footway || '';
+  const address = road ? fmtAddress(a.house_number, road, city, pl.state, a.postcode, pl.cc, pl.country) : '';
+  const isPlace = r.category === 'place' || r.category === 'boundary';
+  const name = r.name || (a.house_number && address ? address.split(',')[0] : '') || placeShort(pl) || String(r.display_name || '').split(',')[0];
+  const sub = isPlace ? [pl.state, pl.country].filter(x => x && x !== name).join(', ') : (address && address !== name ? address : placeShort(pl));
+  const bb = (r.boundingbox || []).map(Number); const extent = bb.length === 4 && isPlace ? [bb[2], bb[1], bb[3], bb[0]] : null;
+  return {name, sub, address, lat: +r.lat, lng: +r.lon, place: pl, kind: r.type || '', key: r.category || '', extent, poi: !!r.name && !isPlace, hasNumber: !!a.house_number};
+}
+function rankResults(list, q){
+  const head = norm(q.split(',')[0]); const addr = looksLikeAddress(q); const region = q.includes(',') || expandQuery(q) !== q;
+  const scored = list.map((r, i) => {
+    let sc = i; const nn = norm(r.name);
+    const town = ['city', 'town', 'village', 'municipality', 'borough'].includes(r.kind);
+    if (region && (town || r.key === 'place' || r.key === 'boundary') && (nn === head || nn.startsWith(head + ' ') || head.startsWith(nn))) sc -= 100;
+    else if (town && nn === head) sc -= 2;
+    if (['national_park', 'nature_reserve', 'protected_area', 'park', 'attraction', 'peak'].includes(r.kind) && nn.includes(head)) sc -= 5;
+    if (['hamlet', 'isolated_dwelling', 'apartments', 'residential', 'house', 'census'].includes(r.kind) && !r.hasNumber) sc += 6;
+    if (r.kind === 'bus_stop' || r.kind === 'platform' || r.kind === 'stop' || (r.key === 'highway' && !r.hasNumber)) sc += 40;
+    if (addr && r.hasNumber) sc -= 120;
+    return {r, sc};
+  }).sort((a, b) => a.sc - b.sc).map(x => x.r);
+  const out = [];
+  for (const r of scored) if (!out.some(o => norm(o.name) === norm(r.name) && haversine(o, r) < 3000)) out.push(r);
+  return out.slice(0, 8);
+}
+async function photonSearch(q){
+  const c = map.getCenter(); const z = clamp(Math.round(map.getZoom()), 3, 14);
+  const near = fetchJSON(`${PHOTON}/api/?q=${encodeURIComponent(q)}&limit=6&lang=en&lat=${c.lat.toFixed(3)}&lon=${c.lng.toFixed(3)}&zoom=${z}&location_bias_scale=0.2`, 12000).catch(() => null);
+  const anywhere = fetchJSON(`${PHOTON}/api/?q=${encodeURIComponent(q)}&limit=6&lang=en`, 12000).catch(() => null);
+  const [a, b] = await Promise.all([near, anywhere]);
+  if (!a && !b) throw new Error('search offline');
+  const A = ((a && a.json && a.json.features) || []).map(fromPhoton), B = ((b && b.json && b.json.features) || []).map(fromPhoton);
+  const out = []; for (let i = 0; i < Math.max(A.length, B.length); i++) { if (B[i]) out.push(B[i]); if (A[i]) out.push(A[i]); }
+  return out;
+}
+async function nominatimSearch(q){
+  const r = await fetchJSON(`${NOMINATIM}/search?format=jsonv2&addressdetails=1&limit=6&accept-language=en&q=${encodeURIComponent(q)}`, 12000);
+  return (Array.isArray(r.json) ? r.json : []).map(fromNominatim);
+}
 sInput.addEventListener('input', () => {
-  $('#searchClear').hidden = !sInput.value; clearTimeout(searchTimer);
+  $('#searchClear').hidden = !sInput.value; clearTimeout(searchTimer); clearTimeout(fullTimer);
   const q = sInput.value.trim(); if (q.length < 3) { sBox.hidden = true; return; }
-  searchTimer = setTimeout(() => doSearch(q), 350);
+  searchTimer = setTimeout(() => doSearch(q, false), 350);
+  if (looksLikeAddress(q) && q.length >= 8) fullTimer = setTimeout(() => doSearch(q, true), 1300);
 });
 sInput.addEventListener('keydown', e => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!searchResults.length) return; kbIndex = (kbIndex + (e.key === 'ArrowDown' ? 1 : -1) + searchResults.length) % searchResults.length; showResults(); }
-  else if (e.key === 'Enter') { e.preventDefault(); clearTimeout(searchTimer); if (searchResults.length && !sBox.hidden) pickResult(Math.max(0, kbIndex)); else if (sInput.value.trim().length >= 2) doSearch(sInput.value.trim(), true); }
+  else if (e.key === 'Enter') {
+    e.preventDefault(); clearTimeout(searchTimer); clearTimeout(fullTimer);
+    const q = sInput.value.trim();
+    if (kbIndex >= 0 && searchResults.length && !sBox.hidden) pickResult(kbIndex);
+    else if (q.length >= 2) { if (lastFull === q && searchResults.length) pickResult(0); else doSearch(q, true, true); }
+  }
   else if (e.key === 'Escape') { sBox.hidden = true; sInput.blur(); }
 });
 sInput.addEventListener('focus', () => { if (searchResults.length && sInput.value.trim().length >= 3) sBox.hidden = false; });
-$('#searchClear').onclick = () => { sInput.value = ''; $('#searchClear').hidden = true; sBox.hidden = true; searchResults = []; if (previewMarker) { map.removeLayer(previewMarker); previewMarker = null; } sInput.focus(); };
+$('#searchClear').onclick = () => { sInput.value = ''; $('#searchClear').hidden = true; sBox.hidden = true; searchResults = []; lastFull = ''; if (previewMarker) { map.removeLayer(previewMarker); previewMarker = null; } sInput.focus(); };
 document.addEventListener('mousedown', e => { if (!e.target.closest('#mapSearch')) sBox.hidden = true; });
-async function doSearch(q, pickFirst){
-  const seq = ++searchSeq; sBox.hidden = false; sBox.innerHTML = '<div class="note"><i class="fa-solid fa-circle-notch fa-spin"></i> Searching…</div>';
-  const c = map.getCenter();
-  try {
-    const r = await fetchJSON(`${PHOTON}/api/?q=${encodeURIComponent(q)}&limit=7&lang=en&lat=${c.lat.toFixed(3)}&lon=${c.lng.toFixed(3)}&location_bias_scale=0.3`, 12000);
-    if (seq !== searchSeq) return;
-    const feats = (r.json && r.json.features) || [];
-    searchResults = feats.map(f => { const pr = f.properties; const pl = photonPlace(pr); const name = pr.name || [pr.housenumber, pr.street].filter(Boolean).join(' ') || placeShort(pl) || 'Place';
-      const sub = [pr.housenumber && pr.street ? `${pr.housenumber} ${pr.street}` : pr.street, placeShort(pl)].filter(Boolean).filter(x => x !== name).join(' · ');
-      return {name, sub, lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], place: pl, kind: pr.osm_value || pr.type || '', extent: pr.extent}; });
-    kbIndex = -1; showResults(); if (pickFirst && searchResults.length) pickResult(0);
-  } catch (e) { if (seq === searchSeq) sBox.innerHTML = '<div class="note"><i class="fa-solid fa-wifi"></i> Search isn’t reachable right now. Check your internet connection.</div>'; }
+async function doSearch(q, full, pickFirst){
+  const seq = ++searchSeq; sBox.hidden = false;
+  if (!searchResults.length || full) sBox.innerHTML = `<div class="note"><i class="fa-solid fa-circle-notch fa-spin"></i> ${full ? 'Searching everywhere…' : 'Searching…'}</div>`;
+  const eq = expandQuery(q);
+  const jobs = [photonSearch(eq).catch(() => null)];
+  if (full) jobs.push(nominatimSearch(eq).catch(() => null));
+  const [ph, nm] = await Promise.all(jobs);
+  if (seq !== searchSeq) return;
+  if (ph === null && (!full || nm === null)) { sBox.innerHTML = '<div class="note"><i class="fa-solid fa-wifi"></i> Search isn’t reachable right now. Check your internet connection.</div>'; return; }
+  const merged = full ? [...(looksLikeAddress(q) ? (nm || []) : []), ...(ph || []), ...(looksLikeAddress(q) ? [] : (nm || []))] : (ph || []);
+  searchResults = rankResults(merged, eq); kbIndex = -1; if (full) lastFull = q;
+  if (pickFirst && searchResults.length) { pickResult(0); return; }
+  showResults(full);
 }
-function kindIcon(k){ const m = {city: 'city', town: 'city', village: 'house', restaurant: 'utensils', cafe: 'mug-hot', fuel: 'gas-pump', hotel: 'bed', motel: 'bed', camp_site: 'campground', museum: 'building-columns', park: 'tree', national_park: 'tree', peak: 'mountain', viewpoint: 'mountain-sun', beach: 'umbrella-beach', attraction: 'star', aerodrome: 'plane', ferry_terminal: 'ferry', charging_station: 'charging-station', lake: 'water', water: 'water'}; return m[k] || 'location-dot'; }
-function showResults(){
-  if (!searchResults.length) { sBox.innerHTML = '<div class="note">No places found. Try adding a city or state.</div>'; sBox.hidden = false; return; }
-  sBox.innerHTML = searchResults.map((r, i) => `<button class="result${i === kbIndex ? ' kb' : ''}" data-r="${i}"><i class="fa-solid fa-${kindIcon(r.kind)}"></i><span><b>${esc(r.name)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</span></button>`).join('');
+function kindIcon(k){ const m = {city: 'city', town: 'city', village: 'house', house: 'house', restaurant: 'utensils', cafe: 'mug-hot', fuel: 'gas-pump', hotel: 'bed', motel: 'bed', camp_site: 'campground', caravan_site: 'caravan', museum: 'building-columns', park: 'tree', national_park: 'tree', nature_reserve: 'tree', peak: 'mountain', viewpoint: 'mountain-sun', beach: 'umbrella-beach', attraction: 'star', aerodrome: 'plane', ferry_terminal: 'ferry', charging_station: 'charging-station', lake: 'water', water: 'water', brewery: 'beer-mug-empty', pub: 'beer-mug-empty', bar: 'beer-mug-empty'}; return m[k] || 'location-dot'; }
+function showResults(full){
+  const q = sInput.value.trim();
+  const more = !full && lastFull !== q ? `<button class="result" data-full="1" style="color:#93c5fd"><i class="fa-solid fa-magnifying-glass-plus" style="color:#93c5fd"></i><span><b>Not here? Search everywhere</b><small>Best for exact street addresses. You can also press Enter.</small></span></button>` : '';
+  if (!searchResults.length) { sBox.innerHTML = (full ? '<div class="note">No places found. Check the spelling, or add a city and state.</div>' : '') + more; sBox.hidden = !sBox.innerHTML; return; }
+  sBox.innerHTML = searchResults.map((r, i) => `<button class="result${i === kbIndex ? ' kb' : ''}" data-r="${i}"><i class="fa-solid fa-${r.hasNumber ? 'house' : kindIcon(r.kind)}"></i><span><b>${esc(r.name)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</span></button>`).join('') + more;
   sBox.hidden = false;
 }
-sBox.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b) pickResult(+b.dataset.r); });
+sBox.addEventListener('click', e => { if (e.target.closest('[data-full]')) { doSearch(sInput.value.trim(), true); return; } const b = e.target.closest('[data-r]'); if (b) pickResult(+b.dataset.r); });
 function pickResult(i){
   const r = searchResults[i]; if (!r) return; sBox.hidden = true; sInput.blur();
   if (previewMarker) map.removeLayer(previewMarker);
-  if (r.extent && r.extent.length === 4) map.flyToBounds([[r.extent[1], r.extent[0]], [r.extent[3], r.extent[2]]], {maxZoom: 13, duration: .7});
-  else map.flyTo([r.lat, r.lng], 13, {duration: .7});
+  if (r.extent && r.extent.length === 4 && !r.hasNumber) map.flyToBounds([[r.extent[1], r.extent[0]], [r.extent[3], r.extent[2]]], {maxZoom: 14, duration: .7});
+  else map.flyTo([r.lat, r.lng], r.hasNumber ? 16 : 14, {duration: .7});
   previewMarker = L.marker([r.lat, r.lng], {icon: L.divIcon({className: '', html: '<div class="search-mk"></div>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14]}), zIndexOffset: 2000}).addTo(map);
   const div = document.createElement('div');
-  div.innerHTML = `<div class="pp-title">${esc(r.name)}</div><div class="pp-sub">${esc(r.sub || '')}</div><button class="btn blue" data-pp="add"><i class="fa-solid fa-plus"></i>Add as a pin</button>${ui.step === 'route' ? '<button class="btn green" data-pp="addroute"><i class="fa-solid fa-route"></i>Add pin + add to route</button>' : ''}`;
+  div.innerHTML = `<div class="pp-title">${esc(r.name)}</div><div class="pp-sub">${esc(r.address && r.address !== r.name ? r.address : r.sub || '')}</div><button class="btn blue" data-pp="add"><i class="fa-solid fa-plus"></i>Add as a pin</button>${ui.step === 'route' ? '<button class="btn green" data-pp="addroute"><i class="fa-solid fa-route"></i>Add pin + add to route</button>' : ''}<a class="btn ghost" href="${esc(gmapsUrl(r))}" target="_blank" rel="noopener" style="width:100%;margin-top:6px;text-decoration:none;color:var(--text)"><i class="fa-solid fa-arrow-up-right-from-square"></i>Open in Google Maps</a>`;
   div.addEventListener('click', ev => { const b = ev.target.closest('[data-pp]'); if (!b) return;
-    addPinAt(L.latLng(r.lat, r.lng), {name: r.name, place: r.place, toRoute: b.dataset.pp === 'addroute', icon: lastStyle.icon === 'location-dot' && kindIcon(r.kind) !== 'location-dot' ? kindIcon(r.kind) : undefined});
-    map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; });
-  previewMarker.bindPopup(div, {minWidth: 240, maxWidth: 300, autoPanPadding: [40, 90]});
+    addPinAt(L.latLng(r.lat, r.lng), {name: r.name, place: r.place, address: r.address, poi: r.poi, toRoute: b.dataset.pp === 'addroute', icon: lastStyle.icon === 'location-dot' && kindIcon(r.kind) !== 'location-dot' ? kindIcon(r.kind) : undefined});
+    map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; });
+  previewMarker.bindPopup(div, {minWidth: 250, maxWidth: 300, autoPanPadding: [40, 90]});
   setTimeout(() => previewMarker && previewMarker.openPopup(), 750);
 }
 
@@ -1632,7 +1777,7 @@ $('#moreBtn').onclick = () => showMenu($('#moreBtn'), [
   {icon: 'file-import', label: 'Import a Google My Map (KML/KMZ)', run: () => $('#fileInput').click()},
   {icon: 'clock-rotate-left', label: 'Restore from a backup file', run: () => $('#fileInput').click()},
   {header: 'Take trips out'},
-  {icon: 'file-word', label: 'Download trip plan (Word)', run: () => { if (trip().route.length < 2) { toast('Make a route first (Step 2).'); return; } makeDoc(); }},
+  {icon: 'file-export', label: 'Export trip itinerary', run: () => { if (trip().route.length < 2) { toast('Make a route first (Step 2).'); return; } makeDoc(); }},
   {icon: 'file-export', label: 'Export this trip for Google Earth / My Maps (KML)', run: exportKML},
   {icon: 'floppy-disk', label: 'Download a backup of all trips', run: exportBackup},
   '-',
@@ -1719,7 +1864,7 @@ function parseKML(text, filename){
       notes = notes.replace(/https?:\/\/[^\s<>"']+/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
     }
     [...pm.getElementsByTagNameNS('*', 'Data')].forEach(d => { if (d.getAttribute('name') === 'gx_media_links') (txt(d, 'value').match(/https?:\/\/\S+/g) || []).forEach(addLink); });
-    pins.push({id: uid(), name: txt(pm, 'name') || 'Untitled place', lat: +coords[1].toFixed(6), lng: +coords[0].toFixed(6), color: color || DEFAULT_COLOR, icon: 'location-dot', notes, links, layerId, place: null});
+    pins.push({address: txt(pm, 'address'), id: uid(), name: txt(pm, 'name') || 'Untitled place', lat: +coords[1].toFixed(6), lng: +coords[0].toFixed(6), color: color || DEFAULT_COLOR, icon: 'location-dot', notes, links, layerId, place: null});
   }
   if (!layers.length) layers.push({id: uid(), name: 'Imported places', visible: true});
   return {name, layers: layers.filter(l => pins.some(p => p.layerId === l.id)), pins, lines};
@@ -1736,7 +1881,7 @@ function exportKML(){
   for (const l of t.layers) {
     const pins = t.pins.filter(p => p.layerId === l.id); if (!pins.length) continue;
     k += `<Folder><name>${xmlEsc(l.name)}</name>\n`;
-    pins.forEach(p => { const desc = [p.notes, ...p.links.map(x => x.url)].filter(Boolean).join('\n'); k += `<Placemark><name>${xmlEsc(p.name)}</name>${desc ? `<description>${xmlEsc(desc)}</description>` : ''}<styleUrl>#c${p.color.slice(1).toLowerCase()}</styleUrl><Point><coordinates>${p.lng},${p.lat},0</coordinates></Point></Placemark>\n`; });
+    pins.forEach(p => { const desc = [p.notes, ...p.links.map(x => x.url)].filter(Boolean).join('\n'); k += `<Placemark><name>${xmlEsc(p.name)}</name>${p.address ? `<address>${xmlEsc(p.address)}</address>` : ''}${desc ? `<description>${xmlEsc(desc)}</description>` : ''}<styleUrl>#c${p.color.slice(1).toLowerCase()}</styleUrl><Point><coordinates>${p.lng},${p.lat},0</coordinates></Point></Placemark>\n`; });
     k += `</Folder>\n`;
   }
   const st = routeStats(t);
@@ -1768,7 +1913,7 @@ async function restoreBackup(data){
 }
 
 /* =========================================================
-   TRIP PLAN  (Word document + plain text)
+   EXPORTED TRIP ITINERARY  (Word document + plain text)
    ========================================================= */
 function planData(){
   const t = trip(); const st = routeStats(t); const days = computeDays(t, st);
@@ -1824,7 +1969,7 @@ async function makeDoc(btn){
   const {t, st, days} = planData();
   if (t.route.length < 2) { toast('Make a route first (Step 2).'); return; }
   if (st.pending) { toast('Still loading some driving times. Try again in a few seconds.'); return; }
-  const old = btn && btn.innerHTML; if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>Making the document and maps…'; }
+  const old = btn && btn.innerHTML; if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>Exporting the itinerary…'; }
   try {
     await loadScript(DOCX_URL);
     const {Document, Packer, Paragraph, TextRun, HeadingLevel, ExternalHyperlink, ImageRun, BorderStyle} = window.docx;
@@ -1839,11 +1984,20 @@ async function makeDoc(btn){
     if (st.errors) P([new TextRun({text: `Note: ${st.errors} drive${st.errors === 1 ? '' : 's'} couldn’t be found and ${st.errors === 1 ? 'is' : 'are'} not included in the totals.`, italics: true, color: 'B00020'})]);
     const shown = new Set();
     const addStay = async (p, stop) => {
-      const s = p.stay; shown.add(p.id);
+      const s = p.stay; const sh = stayShows(s); shown.add(p.id);
       const nights = stop && stop.overnight ? ` · ${stop.nights} night${stop.nights === 1 ? '' : 's'}` : '';
-      P([new TextRun({text: 'Where we’re staying: ', bold: true, color: '6D28D9'}), new TextRun({text: p.name, bold: true}), new TextRun({text: `  (${STAY_TYPES[s.type].label}${nights})`, color: '666666'})], {indent: {left: 720}, border: stayBar, spacing: {before: 140}});
-      [['Address', s.address], ['Phone', s.phone], ['Check-in', s.checkin], ['Check-out', s.checkout], ['Confirmation #', s.conf], ['Already paid', money(s.paid)], ['Due when we arrive', money(s.due)]].forEach(([k, v]) => { if (String(v || '').trim()) P([new TextRun({text: k + ': ', bold: true}), new TextRun(String(v))], {indent: {left: 720}, border: stayBar}); });
-      if (s.notes.trim()) { P([new TextRun({text: 'Check-in details:', bold: true})], {indent: {left: 720}, border: stayBar}); s.notes.split('\n').filter(x => x.trim()).forEach(line => P([new TextRun(line)], {indent: {left: 720}, border: stayBar})); }
+      const line = (runs) => P(runs, {indent: {left: 720}, border: stayBar});
+      P([new TextRun({text: 'Where we’re staying: ', bold: true, color: '6D28D9'}), new TextRun({text: p.name, bold: true}), new TextRun({text: `  (${stayLabel(s)}${nights})`, color: '666666'})], {indent: {left: 720}, border: stayBar, spacing: {before: 140}});
+      const rows = [];
+      if (sh.site) rows.push(['Site number', s.site]);
+      if (sh.phone) rows.push(['Phone', s.phone]);
+      if (sh.times) rows.push(['Check-in', s.checkin], ['Check-out', s.checkout]);
+      if (sh.conf) rows.push(['Confirmation #', s.conf]);
+      if (sh.money) rows.push(['Already paid', money(s.paid)], ['Due when we arrive', money(s.due)]);
+      rows.forEach(([k, v]) => { if (String(v || '').trim()) line([new TextRun({text: k + ': ', bold: true}), new TextRun(String(v))]); });
+      if (sh.perks && (s.reward || s.points)) line([new TextRun({text: 'Booked as: ', bold: true}), new TextRun([s.reward && 'Loyalty / reward night', s.points && 'Paid with points'].filter(Boolean).join(' · '))]);
+      if (sh.amen) { const has = stayAmenList(s); const no = AMENITIES.filter(([k]) => !s.amen[k]).map(([, l]) => l.toLowerCase()); if (has.length) line([new TextRun({text: 'Has: ', bold: true}), new TextRun(has.join(', '))]); if (has.length && no.length) line([new TextRun({text: 'Not listed: ', bold: true, color: '888888'}), new TextRun({text: no.join(', '), color: '888888'})]); }
+      if (s.notes.trim()) { line([new TextRun({text: stayNotesLabel(s) + ':', bold: true})]); s.notes.split('\n').filter(x => x.trim()).forEach(l => line([new TextRun(l)])); }
       for (const ph of s.photos) {
         try { const b = await PhotoDB.get(ph.id); if (!b) continue; const w0 = ph.w || 800, h0 = ph.h || 600; const sc = Math.min(1, 430 / w0, 520 / h0);
           P([new ImageRun({data: await b.arrayBuffer(), transformation: {width: Math.round(w0 * sc), height: Math.round(h0 * sc)}})], {indent: {left: 720}, border: stayBar, spacing: {before: 80}}); } catch (e) { console.error(e); }
@@ -1869,7 +2023,8 @@ async function makeDoc(btn){
         const i = d.idx[k]; const stop = t.route[i]; const p = pinById(stop.pinId); const pl = pinLabel(p);
         const endOfDay = k === d.idx.length - 1;
         const lead = k === 0 ? (d.seg === 0 ? 'Start: ' : 'Leave: ') : (endOfDay ? (i === t.route.length - 1 ? 'Trip ends: ' : 'Overnight: ') : '');
-        P([new TextRun({text: lead, bold: true}), new TextRun({text: p.name, bold: true}), ...(pl ? [new TextRun({text: `  (${pl})`, color: '666666'})] : [])], {bullet: {level: 0}, spacing: {before: 80}});
+        P([new TextRun({text: lead, bold: true}), new TextRun({text: p.name, bold: true}), ...(pl && !p.address ? [new TextRun({text: `  (${pl})`, color: '666666'})] : [])], {bullet: {level: 0}, spacing: {before: 80}});
+        if (p.address) P([new TextRun({text: p.address, color: '444444'})], {indent: {left: 720}});
         if (!(k === 0 && d.seg > 0)) {
           if (p.notes) p.notes.split('\n').filter(x => x.trim()).forEach(line => P([new TextRun({text: line, color: '333333'})], {indent: {left: 720}}));
           p.links.forEach(l => P([new ExternalHyperlink({children: [new TextRun({text: l.url, style: 'Hyperlink'})], link: l.url})], {indent: {left: 720}}));
@@ -1888,9 +2043,9 @@ async function makeDoc(btn){
     P([new TextRun({text: `Made with Larson Family Maps on ${new Date().toLocaleDateString()}. Drive times are estimates without traffic or stops.`, size: 18, color: '888888', italics: true})], {spacing: {before: 400}});
     const doc = new Document({creator: 'Larson Family Maps', title: t.name, styles: {default: {document: {run: {font: 'Calibri', size: 23}}}}, sections: [{properties: {page: {margin: {top: 1080, bottom: 1080, left: 1080, right: 1080}}}, children: C}]});
     const blob = await Packer.toBlob(doc);
-    download(blob, `${safeName(t.name)} - Trip Plan.docx`);
-    toast('Trip plan downloaded. Look in your Downloads folder.');
-  } catch (err) { console.error(err); toast('Couldn’t make the Word file. Check your internet connection and try again.', {err: true, ms: 7000}); }
+    download(blob, `${safeName(t.name)} - Itinerary.docx`);
+    toast('Itinerary exported. Look in your Downloads folder.');
+  } catch (err) { console.error(err); toast('Couldn’t export the itinerary. Check your internet connection and try again.', {err: true, ms: 7000}); }
   finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
 }
 function planText(){
@@ -1904,9 +2059,9 @@ function planText(){
     L.push(`Day ${d.n}: ${from}${from !== to ? ' to ' + to : ''}${d.date ? ' (' + dayDateLong(d) + ')' : ''}`);
     L.push(`  ${milesWord(d.d)} · about ${hrsWord(d.s)} of driving${d.ferry ? ' · includes a ferry' : ''}`);
     d.idx.forEach((i, k) => {
-      const p = pinById(t.route[i].pinId); L.push(`  • ${p.name}${pinLabel(p) ? ' (' + pinLabel(p) + ')' : ''}`);
+      const p = pinById(t.route[i].pinId); L.push(`  • ${p.name}${p.address ? ' — ' + p.address : pinLabel(p) ? ' (' + pinLabel(p) + ')' : ''}`);
       if (!(k === 0 && d.seg > 0)) { if (p.notes) L.push('      ' + p.notes.replace(/\n+/g, ' / ')); p.links.forEach(l => L.push('      ' + l.url)); }
-      if (p.stay && !shown.has(p.id) && k > 0) { shown.add(p.id); const s = p.stay; L.push(`      STAYING: ${STAY_TYPES[s.type].label}` + [s.address, s.phone, s.checkin && 'check-in ' + s.checkin, s.checkout && 'check-out ' + s.checkout, s.conf && 'conf. #' + s.conf, parseMoney(s.paid) !== null && money(s.paid) + ' paid', parseMoney(s.due) !== null && money(s.due) + ' due on arrival'].filter(Boolean).map(x => ' · ' + x).join('')); if (s.notes) L.push('      Check-in details: ' + s.notes.replace(/\n+/g, ' / ')); }
+      if (p.stay && !shown.has(p.id) && k > 0) { shown.add(p.id); const s = p.stay; const sh = stayShows(s); L.push(`      STAYING: ${stayLabel(s)}` + [sh.site && s.site && 'site ' + s.site, sh.phone && s.phone, sh.times && s.checkin && 'check-in ' + s.checkin, sh.times && s.checkout && 'check-out ' + s.checkout, sh.conf && s.conf && 'conf. #' + s.conf, sh.money && parseMoney(s.paid) !== null && money(s.paid) + ' paid', sh.money && parseMoney(s.due) !== null && money(s.due) + ' due on arrival', sh.perks && s.reward && 'reward night', sh.perks && s.points && 'paid with points', sh.amen && stayAmenList(s).length && 'has ' + stayAmenList(s).join(', ')].filter(Boolean).map(x => ' · ' + x).join('')); if (s.notes) L.push(`      ${stayNotesLabel(s)}: ` + s.notes.replace(/\n+/g, ' / ')); }
       if (k < d.idx.length - 1) { const x = st.legs[i]?.info; if (x && x.status === 'ok') L.push(`      → ${miles(x.d)}, ${hrs(x.t)}`); }
     });
     L.push('');
@@ -1915,8 +2070,8 @@ function planText(){
 }
 async function copyText(){
   const txt = planText();
-  try { await navigator.clipboard.writeText(txt); toast('Trip plan copied. Paste it into an email, note or document.'); }
-  catch { modal({title: 'Trip plan', html: `<p>Select all of this text and copy it:</p><textarea class="input" style="min-height:300px;font-size:14px" readonly>${esc(txt)}</textarea>`, buttons: [{label: 'Close', kind: 'blue'}]}); }
+  try { await navigator.clipboard.writeText(txt); toast('Itinerary copied. Paste it into an email, note or document.'); }
+  catch { modal({title: 'Trip itinerary', html: `<p>Select all of this text and copy it:</p><textarea class="input" style="min-height:300px;font-size:14px" readonly>${esc(txt)}</textarea>`, buttons: [{label: 'Close', kind: 'blue'}]}); }
 }
 
 /* =========================================================
@@ -1926,7 +2081,7 @@ function stepsHtml(){
   return `<div class="welcome-steps">
     <div><span class="n" style="background:var(--pins)">1</span><span><b>Pins.</b> Drop every place you might want to see. Press <b>Add pins</b> and click the map, or search for a place. Click any pin to name it, add notes and links, and pick an icon and color.<p></p></span></div>
     <div><span class="n" style="background:var(--route)">2</span><span><b>Route.</b> Connect the dots: click pins in the order you’ll visit them. You’ll see the miles and driving time for every drive. Drag stops to change the order, or press <b>Suggest order</b>.</span></div>
-    <div><span class="n" style="background:var(--days)">3</span><span><b>Days.</b> Press <b>End day</b> on the stops where you’ll sleep, and use <b>+</b> for extra nights. Or press <b>Split into days</b> and the site suggests towns to stop in. Then download the day-by-day trip plan with maps and hotel details.</span></div></div>`;
+    <div><span class="n" style="background:var(--days)">3</span><span><b>Days.</b> Press <b>End day</b> on the stops where you’ll sleep, and use <b>+</b> for extra nights. Or press <b>Split into days</b> and the site suggests towns to stop in. Then export the day-by-day trip itinerary, with maps and all your stay details.</span></div></div>`;
 }
 function showWelcome(){
   modal({title: 'Welcome to Larson Family Maps', html: `<p>Plan a trip in three steps:</p>${stepsHtml()}<p>Everything saves automatically in this browser. Made a mistake? Press <i class="fa-solid fa-rotate-left"></i> Undo at the top.</p>`, buttons: [{label: 'Let’s go', kind: 'green'}]}).then(() => { prefs.seenWelcome = true; savePrefs(); });
