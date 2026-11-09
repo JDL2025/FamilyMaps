@@ -117,6 +117,7 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .totals .sub{color:var(--muted);font-size:15px}
 .totals.days{background:linear-gradient(135deg,rgba(245,158,11,.16),rgba(245,158,11,.04));border-color:rgba(245,158,11,.4)}
 .stops{list-style:none;margin:12px 0 0;padding:0}
+#stopList .stop{margin-bottom:8px}
 .stop{background:var(--panel2);border:1px solid var(--line);border-radius:12px;margin-bottom:0}
 .stop-main{display:flex;align-items:center;gap:8px;padding:8px 6px 8px 4px;min-height:56px}
 .stop .drag{width:38px;height:44px;display:grid;place-items:center;color:var(--faint);cursor:grab;touch-action:none;flex:none;border:none;background:none;font-size:17px}
@@ -130,6 +131,22 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .leg .arrow{color:var(--route)}
 .leg b{color:var(--text)}
 .leg.pending{color:var(--faint)}
+.leg.in{padding:10px 12px 0 14px;min-height:0;cursor:pointer}
+.leg.in:before{display:none}
+.leg.in .arrow{width:30px;text-align:center;flex:none}
+.leg .from{color:var(--muted)}
+.seg-total{display:flex;align-items:center;gap:8px;margin:0 10px 10px 50px;padding:7px 11px;border-radius:10px;background:color-mix(in srgb,var(--dc) 18%,transparent);border:1px solid color-mix(in srgb,var(--dc) 55%,transparent);font-size:14px;color:var(--text)}
+.seg-total i{color:var(--dc)}
+.seg-sofar{margin:-2px 10px 8px 50px;font-size:13px;color:var(--faint)}
+.seg-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:18px;padding:5px;border-radius:14px;background:var(--panel2);border:1px solid var(--line)}
+.seg-tabs button{min-height:46px;border:none;border-radius:10px;background:transparent;color:var(--muted);font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px}
+.seg-tabs button.on{background:var(--days);color:#2a1700}
+.guide{margin-top:10px;padding:12px 14px;border-radius:14px;background:var(--panel2);border:1px solid var(--line)}
+.guide ol{margin:0;padding:0;list-style:none;display:grid;gap:9px}
+.guide li{display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--muted)}
+.guide li b{color:var(--text)}
+.guide .n{width:24px;height:24px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--panel3);color:var(--text);font-weight:700;font-size:13px}
+.guide li.done .n{background:var(--route);color:#06210f}
 .leg .retry{border:none;background:none;color:#93c5fd;text-decoration:underline;padding:0;font-size:14px}
 .sortable-ghost{opacity:.35}
 .sortable-chosen .stop-main{background:var(--panel3)}
@@ -494,7 +511,7 @@ async function fetchJSON(url, ms = 15000){ const c = new AbortController(); cons
    DATA + SAVING
    ========================================================= */
 let db = {version: APP_VERSION, trips: [], currentId: null};
-let prefs = {basemap: 'dark', step: 'pins', seenWelcome: false};
+let prefs = {basemap: 'dark', step: 'pins', seenWelcome: false, segMode: 'manual'};
 let storageOK = true;
 
 function newTrip(name){ const lid = uid(); return {id: uid(), name: name || 'New trip', created: Date.now(), updated: Date.now(), layers: [{id: lid, name: 'Places', visible: true}], activeLayerId: lid, pins: [], route: [], startDate: '', maxDayHours: 7}; }
@@ -1118,9 +1135,9 @@ function suggestDays(){
     if (tt > max * 1.1) { const k = Math.ceil(tt / max) - 1; longLegs.push({i, k}); acc = tt / (k + 1); }
     else acc += tt;
   });
-  change('Split into segments', t => t.route.forEach((s, i) => { s.overnight = nights.has(i); }));
+  change('Smart Segments', t => t.route.forEach((s, i) => { s.overnight = nights.has(i); }));
   ui.sugs = ui.sugs.filter(x => x.trip !== t.id);
-  if (!longLegs.length) { drawSuggestions(); undoToast(`Split into ${nights.size + 1} segment${nights.size ? 's' : ''} of up to about ${t.maxDayHours} hours of driving.`); return; }
+  if (!longLegs.length) { drawSuggestions(); undoToast(`Smart Segments made ${nights.size + 1} segment${nights.size ? 's' : ''}, each up to about ${t.maxDayHours} hours of driving.`); return; }
   findSuggestions(t, st, longLegs);
 }
 async function findSuggestions(t, st, longLegs){
@@ -1262,13 +1279,14 @@ function layersHtml(t, nums, f){
 
 /* ---- Step 2: route ---- */
 function legHtml(l, t){
+  // the drive that arrives at a stop; shown at the top of that stop's card
   if (!l) return '';
-  const x = l.info;
-  if (!x || x.status === 'pending') return `<div class="leg pending"><span class="loading-pill"><i class="fa-solid fa-circle-notch fa-spin"></i>Finding the drive…</span></div>`;
-  if (x.status === 'error') return `<div class="leg"><span class="pill err"><i class="fa-solid fa-triangle-exclamation"></i>${esc(x.err)}</span>${x.kind === 'network' ? '<button class="retry" data-act="retry">Try again</button>' : ''}</div>`;
-  if (x.d === 0) return `<div class="leg" data-act="zoom-leg" data-i="${l.i}"><span class="arrow"><i class="fa-solid fa-arrow-down"></i></span>Same place</div>`;
+  const x = l.info; const from = l.a ? `<span class="from">from ${esc(l.a.name)}</span>` : '';
+  if (!x || x.status === 'pending') return `<div class="leg in pending"><span class="loading-pill"><i class="fa-solid fa-circle-notch fa-spin"></i>Finding the drive ${from}…</span></div>`;
+  if (x.status === 'error') return `<div class="leg in"><span class="pill err"><i class="fa-solid fa-triangle-exclamation"></i>${esc(x.err)}</span>${x.kind === 'network' ? '<button class="retry" data-act="retry">Try again</button>' : ''}</div>`;
+  if (x.d === 0) return `<div class="leg in" data-act="zoom-leg" data-i="${l.i}"><span class="arrow"><i class="fa-solid fa-arrow-down"></i></span>Same place as the stop before</div>`;
   const wp = l.vias && l.vias.length ? `<span class="pill wp"><span class="wpb" style="width:16px;height:16px;font-size:9px;border-width:1px">W</span>via ${l.vias.length} waypoint${l.vias.length === 1 ? '' : 's'}<button data-act="clear-vias" data-sid="${l.sid}" title="Remove these waypoints" aria-label="Remove these waypoints"><i class="fa-solid fa-xmark"></i></button></span>` : '';
-  return `<div class="leg" data-act="zoom-leg" data-i="${l.i}" title="Show this drive on the map"><span class="arrow"><i class="fa-solid fa-arrow-down"></i></span><b>${miles(x.d)}</b> · ${hrs(x.t)}${x.ferry ? `<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry ${miles(x.ferry.d)} · ${hrs(x.ferry.t)}</span>` : ''}${wp}</div>`;
+  return `<div class="leg in" data-act="zoom-leg" data-i="${l.i}" title="Show this drive on the map"><span class="arrow"><i class="fa-solid fa-car-side"></i></span><span><b>${miles(x.d)}</b> · ${hrs(x.t)} ${from}</span>${x.ferry ? `<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry ${miles(x.ferry.d)} · ${hrs(x.ferry.t)}</span>` : ''}${wp}</div>`;
 }
 function totalsHtml(st, n, extra = ''){
   let status = '';
@@ -1294,13 +1312,13 @@ function routeView(){
   html += `<ol class="stops" id="stopList">`;
   t.route.forEach((s, i) => {
     const p = pinById(s.pinId);
-    html += `<li class="stop" data-sid="${s.sid}"><div class="stop-main">
+    html += `<li class="stop" data-sid="${s.sid}">${i > 0 ? legHtml(st.legs[i - 1], t) : ''}<div class="stop-main">
       <button class="drag" aria-label="Drag to reorder"><i class="fa-solid fa-grip-lines"></i></button>
       <span class="snum">${i + 1}</span>
       <span class="txt" data-act="focus-pin" data-id="${p.id}"><b>${esc(p.name)}</b>${pinLabel(p) ? `<small>${esc(pinLabel(p))}</small>` : ''}</span>
       <button class="mini-btn" data-act="open-pin" data-id="${p.id}" title="Edit this pin"><i class="fa-solid fa-pen"></i></button>
       <button class="mini-btn" data-act="remove-stop" data-sid="${s.sid}" title="Remove from route (pin stays on map)"><i class="fa-solid fa-xmark"></i></button>
-    </div>${i < n - 1 ? legHtml(st.legs[i], t) : ''}</li>`;
+    </div></li>`;
   });
   html += `</ol>`;
   if (n >= 2) html += `<button class="btn big amber" style="margin-top:16px" data-act="go" data-step="days">Next: Step 3, plan the segments<i class="fa-solid fa-arrow-right"></i></button>`;
@@ -1330,10 +1348,22 @@ function daysView(){
   let html = totalsHtml(st, n, ' days').replace('total driving', `${days.length} segment${days.length === 1 ? '' : 's'} · total driving`);
   const lodging = lodgingTotals(t); if (lodging) html += `<p class="hint"><i class="fa-solid fa-bed" style="color:#c4b5fd"></i> Lodging: ${esc(lodging)}</p>`;
   html += `<label class="label">Trip start date (optional)</label><input class="input" type="date" id="startDate" value="${esc(t.startDate)}">`;
-  html += `<label class="label">Most driving you want in one segment</label>
-    <div class="row-inline"><select class="input" id="maxHours" style="width:auto;flex:1">${[3,4,5,6,7,8,9,10,11,12].map(h => `<option value="${h}" ${h === t.maxDayHours ? 'selected' : ''}>${h} hours</option>`).join('')}</select>
-    <button class="btn amber" data-act="suggest-days" style="flex:1.3" ${ui.sugBusy ? 'disabled' : ''}><i class="fa-solid fa-wand-magic-sparkles"></i>Split into segments</button></div>`;
-  html += `<p class="hint">Or press <b style="color:var(--text)"><i class="fa-solid fa-moon"></i> End segment</b> on any stop where you’ll sleep. Use <b style="color:var(--text)">−</b> and <b style="color:var(--text)">+</b> to stay more than one night.</p>`;
+  const smart = prefs.segMode === 'smart';
+  html += `<div class="seg-tabs" role="tablist"><button class="${smart ? '' : 'on'}" data-act="seg-mode" data-m="manual" role="tab" aria-selected="${!smart}"><i class="fa-solid fa-hand-pointer"></i>Create segments manually</button><button class="${smart ? 'on' : ''}" data-act="seg-mode" data-m="smart" role="tab" aria-selected="${smart}"><i class="fa-solid fa-wand-magic-sparkles"></i>Smart Segments</button></div>`;
+  if (!smart) {
+    const nights = t.route.filter((s, i) => s.overnight && i > 0 && i < n - 1).length;
+    const stays = t.route.filter((s, i) => s.overnight && i > 0 && i < n - 1 && pinById(s.pinId)?.stay).length;
+    html += `<div class="guide"><ol>
+      <li class="done"><span class="n"><i class="fa-solid fa-check"></i></span><span><b>Put your stops in order.</b> You have ${n} stops. To add or reorder stops, <a href="#" data-act="go" data-step="route" style="color:#93c5fd">go to Step 2: Route</a>.</span></li>
+      <li class="${nights ? 'done' : ''}"><span class="n">${nights ? '<i class="fa-solid fa-check"></i>' : '2'}</span><span><b>Read down the list below.</b> Each stop shows the drive that gets you there and how much you’ve driven so far in that segment. On the stop where you’ll sleep, press <b><i class="fa-solid fa-moon"></i> End segment</b>.${nights ? ` You’ve ended ${nights} segment${nights === 1 ? '' : 's'}.` : ''}</span></li>
+      <li class="${nights && stays === nights ? 'done' : ''}"><span class="n">${nights && stays === nights ? '<i class="fa-solid fa-check"></i>' : '3'}</span><span><b>Add nights and lodging.</b> Use <b>−</b> and <b>+</b> to stay more than one night, and press <b>Add where we’re staying</b> for hotel or campsite details.</span></li>
+    </ol></div>`;
+  } else {
+    html += `<div class="guide"><p class="hint" style="margin:0 0 10px">Smart Segments plans the segments for you, so no segment has more driving than the limit you pick. If one drive is longer than that, it suggests towns along the way, shown on the map with a <b style="color:#fbbf24">?</b>. You can change anything afterward.</p>
+      <label class="label" style="margin-top:0">Most driving you want in one segment</label>
+      <div class="row-inline"><select class="input" id="maxHours" style="width:auto;flex:1">${[3,4,5,6,7,8,9,10,11,12].map(h => `<option value="${h}" ${h === t.maxDayHours ? 'selected' : ''}>${h} hours</option>`).join('')}</select>
+      <button class="btn amber" data-act="suggest-days" style="flex:1.3" ${ui.sugBusy ? 'disabled' : ''}><i class="fa-solid fa-wand-magic-sparkles"></i>Create Smart Segments</button></div></div>`;
+  }
   html += suggestionsHtml();
   days.forEach((d, di) => {
     const col = dayColor(d.seg); const dateTxt = d.date ? ' · ' + d.date.toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric'}) : '';
@@ -1359,8 +1389,14 @@ function daysView(){
       let extra = '';
       if (endsDay && s.overnight) extra = `<div class="stop-extra"><span class="nights"><button data-act="nights" data-sid="${s.sid}" data-d="-1" aria-label="One fewer night">−</button><b>${s.nights} night${s.nights === 1 ? '' : 's'}</b><button data-act="nights" data-sid="${s.sid}" data-d="1" aria-label="One more night">+</button></span>${stayChip(p, true)}</div>`;
       else if (p.stay && !woke) extra = `<div class="stop-extra">${stayChip(p)}</div>`;
-      html += `<li class="stop"><div class="stop-main" style="padding-left:10px"><span class="snum" style="background:${col}">${i + 1}</span>
-        <span class="txt" data-act="focus-pin" data-id="${p.id}"><b>${esc(p.name)}</b>${pinLabel(p) ? `<small>${esc(pinLabel(p))}</small>` : ''}</span>${right}</div>${extra}${k < d.idx.length - 1 ? legHtml(st.legs[i], t) : ''}</li>`;
+      let sum = '';
+      if (k > 0) {
+        let dd = 0, tt = 0, miss = false; for (let j = d.idx[0]; j < i; j++) { const x = st.legs[j] && st.legs[j].info; if (x && x.status === 'ok') { dd += x.d; tt += x.t; } else miss = true; }
+        if (k === d.idx.length - 1) sum = `<div class="seg-total"><i class="fa-solid fa-flag-checkered"></i><span><b>Segment ${d.n} total:</b> ${miles(dd)} · ${hrs(tt)} driving${miss ? ' (some drives still loading)' : ''}</span></div>`;
+        else if (k > 1) sum = `<div class="seg-sofar">So far this segment: ${miles(dd)} · ${hrs(tt)}</div>`;
+      }
+      html += `<li class="stop">${k > 0 ? legHtml(st.legs[i - 1], t) : ''}<div class="stop-main" style="padding-left:10px"><span class="snum" style="background:${col}">${i + 1}</span>
+        <span class="txt" data-act="focus-pin" data-id="${p.id}"><b>${esc(p.name)}</b>${pinLabel(p) ? `<small>${esc(pinLabel(p))}</small>` : ''}</span>${right}</div>${sum}${extra}</li>`;
     });
     html += `</ol></div>`;
   });
@@ -1546,7 +1582,7 @@ document.addEventListener('click', async e => {
     case 'del-link': change('Remove link', t => { pinById(ui.editorPinId).links.splice(+el.dataset.i, 1); }); break;
     case 'editor-add-route': addToRoute(ui.editorPinId); break;
     case 'remove-from-route': { const pid = ui.editorPinId; change('Remove stop', t => { t.route = t.route.filter(s => s.pinId !== pid); }); undoToast('Removed from the route'); break; }
-    case 'go': setStep(el.dataset.step); break;
+    case 'go': e.preventDefault(); setStep(el.dataset.step); break;
     case 'add-all': addAllPins(); break;
     case 'suggest': suggestOrder(); break;
     case 'reverse': reverseRoute(); break;
@@ -1572,6 +1608,7 @@ document.addEventListener('click', async e => {
     case 'del-photo': change('Remove photo', t => { pinById(ui.editorPinId).stay.photos.splice(+el.dataset.i, 1); }); undoToast('Picture removed'); break;
     case 'view-photo': viewPhoto(id); break;
     case 'suggest-days': suggestDays(); break;
+    case 'seg-mode': e.preventDefault(); prefs.segMode = el.dataset.m; savePrefs(); renderPanel(); break;
     case 'make-doc': makeDoc(el); break;
     case 'copy-text': copyText(); break;
   }
@@ -2100,7 +2137,7 @@ async function makeDoc(btn){
         }
         if (p.stay && !shown.has(p.id) && (endOfDay || k > 0)) await addStay(p, stop);
         if (k < d.idx.length - 1) { const x = st.legs[i] && st.legs[i].info; const next = stopTitle(t, d.idx[k + 1]);
-          P([new TextRun({text: x && x.status === 'ok' ? `→ Drive ${milesWord(x.d)}, about ${hrsWord(x.t)}, to ${next}${x.ferry ? ' (includes a ferry)' : ''}${st.legs[i].vias.length ? ` (via ${st.legs[i].vias.length} waypoint${st.legs[i].vias.length === 1 ? '' : 's'} you chose)` : ''}` : `→ Drive to ${next} (driving time unknown)`, italics: true, color: colHex})], {indent: {left: 720}, spacing: {before: 40}}); }
+          P([new TextRun({text: x && x.status === 'ok' ? `→ Drive ${milesWord(x.d)}, about ${hrsWord(x.t)}, to ${next}${x.ferry ? ' (includes a ferry)' : ''}${st.legs[i].vias.length ? ` (via ${st.legs[i].vias.length} waypoint${st.legs[i].vias.length === 1 ? '' : 's'})` : ''}` : `→ Drive to ${next} (driving time unknown)`, italics: true, color: colHex})], {indent: {left: 720}, spacing: {before: 40}}); }
       }
     }
     const inRoute = new Set(t.route.map(s => s.pinId)); const others = t.pins.filter(p => !inRoute.has(p.id));
@@ -2150,7 +2187,7 @@ function stepsHtml(){
   return `<div class="welcome-steps">
     <div><span class="n" style="background:var(--pins)">1</span><span><b>Pins.</b> Drop every place you might want to see: click anywhere on the map, or search for a place. Click any pin to name it, add notes and links, and pick an icon and color.<p></p></span></div>
     <div><span class="n" style="background:var(--route)">2</span><span><b>Route.</b> Connect the dots: click pins in the order you’ll visit them. You’ll see the miles and driving time for every drive. Drag stops to change the order, or press <b>Suggest order</b>.</span></div>
-    <div><span class="n" style="background:var(--days)">3</span><span><b>Segments.</b> Press <b>End segment</b> on the stops where you’ll sleep, and use <b>+</b> for extra nights. Or press <b>Split into segments</b> and the site suggests towns to stop in. Then export the trip itinerary, with a map for each segment and all your stay details.</span></div></div>`;
+    <div><span class="n" style="background:var(--days)">3</span><span><b>Segments.</b> Press <b>End segment</b> on the stops where you’ll sleep, and use <b>+</b> for extra nights. Or choose <b>Smart Segments</b> and the site plans them for you, suggesting towns to stop in. Then export the trip itinerary, with a map for each segment and all your stay details.</span></div></div>`;
 }
 function showWelcome(){
   modal({title: 'Welcome to Larson Family Maps', html: `<p>Plan a trip in three steps:</p>${stepsHtml()}<p>Everything saves automatically in this browser. Made a mistake? Press <i class="fa-solid fa-rotate-left"></i> Undo at the top.</p>`, buttons: [{label: 'Let’s go', kind: 'green'}]}).then(() => { prefs.seenWelcome = true; savePrefs(); });
