@@ -1330,6 +1330,13 @@ function drawWaypoints(){
 }
 
 /* ---------- routes (drive / hike / group tour) ---------- */
+const LONG_DRIVE_S = 12 * 3600, LONG_HIKE_M = 12 * 1609.344;   // group tours never warn: someone else drives
+function longPills(d){
+  const by = d.by || {}; let h = '';
+  if (by.drive && by.drive.s > LONG_DRIVE_S) h += `<span class="pill warn" title="More than 12 hours of driving in this segment"><i class="fa-solid fa-triangle-exclamation"></i>Long drive</span>`;
+  if (by.hike && by.hike.d > LONG_HIKE_M) h += `<span class="pill warn" title="More than 12 miles of hiking in this segment"><i class="fa-solid fa-person-hiking"></i>Long hike</span>`;
+  return h;
+}
 function routeSwatch(type, col = ROUTE_BLUE){
   const base = `<svg class="route-swatch" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true">`;
   if (type === 'hike') return base + `<line x1="3" y1="6" x2="27" y2="6" stroke="${col}" stroke-width="5" stroke-linecap="round" stroke-dasharray="0.1 8"/></svg>`;
@@ -1753,7 +1760,7 @@ function daysView(){
     const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
     html += `<div class="day" style="--dc:${col}"><div class="day-head"><div class="dh"><div class="d1">Segment ${d.n}${dateTxt}</div>
       <div class="d2">${esc(from)}${from !== to ? ' → ' + esc(to) : ''}</div>
-      <div class="d3"><span>${modeLine(d.by).replace(/^([^·]+)·/, '<b style="color:var(--text)">$1</b>·')}</span>${d.ferry ? '<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry</span>' : ''}${d.missing ? `<span class="pill err">${d.missing} leg${d.missing === 1 ? '' : 's'} missing</span>` : ''}</div></div>
+      <div class="d3"><span>${modeLine(d.by).replace(/^([^·]+)·/, '<b style="color:var(--text)">$1</b>·')}</span>${longPills(d)}${d.ferry ? '<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry</span>' : ''}${d.missing ? `<span class="pill err">${d.missing} leg${d.missing === 1 ? '' : 's'} missing</span>` : ''}</div></div>
       <button class="mini-btn" data-act="zoom-day" data-i="${di}" title="Show this segment on the map"><i class="fa-solid fa-magnifying-glass-location"></i></button></div><ol class="stops seg-list" style="margin:0">`;
     d.idx.forEach((i, k) => {
       const s = t.route[i]; const p = pinById(s.pinId); const woke = k === 0 && d.seg > 0; const last = i === n - 1;
