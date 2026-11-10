@@ -229,6 +229,11 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .mk i{position:absolute;left:0;right:0;top:8px;text-align:center;font-size:14px;color:var(--fg)}
 .mk .mk-num{position:absolute;top:-9px;right:-12px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#0b0f14;color:#86efac;border:2px solid var(--route);font:700 12px/18px var(--font);text-align:center}
 .mk.sel{transform:scale(1.25);transform-origin:50% 100%;z-index:1}
+.mk-in{position:absolute;inset:0;transform-origin:50% 100%}
+.mk-in.pop{animation:mkpop .75s cubic-bezier(.22,1.4,.36,1)}
+@keyframes mkpop{0%{transform:scale(1);filter:none}30%{transform:scale(1.32) translateY(-5px);filter:drop-shadow(0 0 7px var(--c)) drop-shadow(0 0 14px var(--c))}100%{transform:scale(1);filter:drop-shadow(0 0 0 transparent)}}
+.mk-in.pop:before{content:"";position:absolute;left:50%;top:38%;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:radial-gradient(circle,var(--c) 0%,transparent 70%);z-index:-1;animation:mkring .9s ease-out forwards}
+@keyframes mkring{0%{opacity:.85;transform:scale(.4)}100%{opacity:0;transform:scale(4.2)}}
 .mk.sel:after{content:"";position:absolute;left:4px;right:4px;bottom:-5px;height:8px;border-radius:50%;background:rgba(255,255,255,.55);z-index:-1}
 .mk.dim{opacity:.55}
 .leaflet-container{font-family:var(--font)}
@@ -254,7 +259,8 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .banner.waypoint .btn{background:rgba(0,0,0,.14)}
 .btn.yellow{background:#facc15;color:#2a2000}
 .pill.wp{background:rgba(250,204,21,.16);color:#fde047}
-.pill.wp button{border:none;background:none;color:inherit;padding:0 0 0 4px;font-size:13px}
+.pill.wp button{border:none;background:#ef4444;color:#fff;width:20px;height:20px;border-radius:50%;padding:0;margin-left:4px;font-size:11px;display:inline-grid;place-items:center}
+.pill.wp button:hover{background:#dc2626}
 .adding .leaflet-marker-icon{cursor:default}
 
 /* ---------- Menus & modals ---------- */
@@ -406,7 +412,7 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
         <button class="tool" id="styleBtn" title="Change map style"><i class="fa-solid fa-layer-group"></i><span class="tl">Map style</span></button>
         <div class="basemaps" id="basemapMenu" hidden></div>
         <button class="tool" id="measureBtn" title="Measure a distance"><i class="fa-solid fa-ruler"></i><span class="tl">Measure</span></button>
-        <button class="tool" id="fitBtn" title="Zoom to show the whole trip"><i class="fa-solid fa-expand"></i><span class="tl">Show all</span></button>
+        <button class="tool" id="fitBtn" title="Zoom out to see the whole trip"><i class="fa-solid fa-magnifying-glass-minus"></i><span class="tl">Zoom out</span></button>
       </div>
       <div class="banner" id="banner" hidden></div>
       <div class="measure-card" id="measureCard" hidden></div>
@@ -687,7 +693,7 @@ function stopNumbers(t){ const m = new Map(); t.route.forEach((s, i) => { if (!m
 function markerIcon(p, nums, sel, dim){
   const badge = nums ? `<span class="mk-num">${nums.length > 2 ? nums[0] + '+' : nums.join(',')}</span>` : '';
   return L.divIcon({className: '', iconSize: [32, 42], iconAnchor: [16, 41], tooltipAnchor: [0, -34], popupAnchor: [0, -36],
-    html: `<div class="mk${sel ? ' sel' : ''}${dim ? ' dim' : ''}" style="--c:${p.color};--fg:${fgFor(p.color)}">${PIN_SVG}<i class="fa-solid fa-${p.icon}"></i>${badge}</div>`});
+    html: `<div class="mk${sel ? ' sel' : ''}${dim ? ' dim' : ''}" style="--c:${p.color};--fg:${fgFor(p.color)}"><div class="mk-in">${PIN_SVG}<i class="fa-solid fa-${p.icon}"></i>${badge}</div></div>`});
 }
 function renderMap(){
   const t = trip(); const nums = stopNumbers(t);
@@ -760,7 +766,11 @@ function fitTrip(){
 }
 $('#fitBtn').onclick = fitTrip;
 function fitRoute(){ const t = trip(); const pts = t.route.map(s => pinById(s.pinId)).filter(Boolean).map(p => [p.lat, p.lng]); if (pts.length > 1) map.fitBounds(pts, {padding: [60, 60], maxZoom: 12}); }
-function flyToPin(p){ const z = Math.max(map.getZoom(), 9); map.flyTo([p.lat, p.lng], z, {duration: .6}); }
+function flyToPin(p){ map.panTo([p.lat, p.lng], {animate: true, duration: .45}); setTimeout(() => popPin(p.id), 480); }
+function popPin(id){
+  const rec = markers.get(id); const el = rec && rec.m.getElement && rec.m.getElement(); const mk = el && el.querySelector('.mk-in'); if (!mk) return;
+  mk.classList.remove('pop'); void mk.offsetWidth; mk.classList.add('pop'); setTimeout(() => mk.classList.remove('pop'), 1000);
+}
 
 /* ---------- map clicks ----------
    Pins step: a click on the map drops a pin (waits a moment so a double-click zooms instead).
@@ -790,7 +800,7 @@ function onPinClick(id){
    ========================================================= */
 function addPinAt(ll, opts = {}){
   const t = trip(); const id = uid();
-  const p = {id, name: opts.name || 'New pin', lat: +ll.lat.toFixed(6), lng: +ll.lng.toFixed(6), color: opts.color || lastStyle.color, icon: opts.icon || lastStyle.icon, notes: '', links: [], layerId: t.activeLayerId, place: opts.place || null, autoName: !opts.name, address: opts.address || '', poi: !!opts.poi, stay: null};
+  const p = {id, name: opts.name || 'New pin', lat: +ll.lat.toFixed(6), lng: +ll.lng.toFixed(6), color: opts.color || DEFAULT_COLOR, icon: opts.icon || 'location-dot', notes: '', links: [], layerId: t.activeLayerId, place: opts.place || null, autoName: !opts.name, address: opts.address || '', poi: !!opts.poi, stay: null};
   const layer = layerById(t.activeLayerId); if (layer && !layer.visible) layer.visible = true;
   change('Add pin', t => { t.pins.push(p); if (opts.toRoute) t.route.push({sid: uid(), pinId: id, overnight: false}); });
   if (!p.place) fillPlace(id);
@@ -811,8 +821,15 @@ async function runPlaceQueue(){
       if (!r.ok && r.status !== 404) throw new Error('reverse ' + r.status);
       const a = (r.json && r.json.address) || {};
       const place = {city: a.city || a.town || a.village || a.hamlet || a.municipality || a.county || '', state: a.state || a.province || a.region || '', country: a.country || '', cc: (a.country_code || '').toUpperCase()};
+      let addr = a.house_number && a.road ? fmtAddress(a.house_number, a.road, place.city, place.state, a.postcode, place.cc, place.country) : '';
+      if (!addr) {   // the click landed on a street, park or landmark: use the nearest real street address
+        try { const ph = await fetchJSON(`${PHOTON}/reverse?lat=${p.lat}&lon=${p.lng}&layer=house&limit=5&radius=0.15&lang=en`, 8000);
+          const h = ((ph.json && ph.json.features) || []).find(x => x.properties.housenumber && x.properties.street);
+          if (h) { const hp = h.properties; addr = fmtAddress(hp.housenumber, hp.street, place.city || hp.city, place.state || hp.state, hp.postcode || a.postcode, place.cc, place.country); } } catch (e) {}
+      }
+      if (!addr && a.road) addr = fmtAddress('', a.road, place.city, place.state, a.postcode, place.cc, place.country);
       const q = trip().pins.find(x => x.id === id);
-      if (q) { q.place = place; if (!q.address && a.house_number && a.road) q.address = fmtAddress(a.house_number, a.road, place.city, place.state, a.postcode, place.cc, place.country); if (q.autoName && q.name === 'New pin' && placeShort(place)) q.name = placeShort(place); scheduleSave(); renderMap(); if (!ui.editorPinId || ui.editorPinId === id) renderPanelSoft(); }
+      if (q) { q.place = place; q.addrTried = true; if (!q.address && addr) q.address = addr; if (q.autoName && q.name === 'New pin' && placeShort(place)) q.name = placeShort(place); scheduleSave(); renderMap(); if (!ui.editorPinId || ui.editorPinId === id) renderPanelSoft(); }
     } catch (e) { /* offline: leave blank, will retry later */ placeTried.delete(id); }
     await sleep(1100);
   }
@@ -1301,7 +1318,7 @@ function routeView(){
   let html = '';
   if (n) html += totalsHtml(st, n);
   const inRoute = new Set(t.route.map(s => s.pinId)); const notIn = t.pins.filter(p => !inRoute.has(p.id)).length;
-  html += `<p class="hint">${n ? TAP + ' more pins on the map to add them to the end. Drag <i class="fa-solid fa-grip-lines"></i> to change the order.' : `<b style="color:var(--text)">${TAP} your pins on the map in the order you want to visit them.</b> The first pin you ${TAP.toLowerCase()} becomes stop #1.`}</p>`;
+  html += `<p class="hint">${n ? 'Drag your pins (<i class="fa-solid fa-grip-lines"></i>) to create your route.' : `<b style="color:var(--text)">Build your route.</b> ${TAP} your pins in the order you want to visit them. Or, choose an option from below.`}</p>`;
   html += `<div class="btn-grid">
     <button class="btn sm ghost" data-act="add-all" ${notIn ? '' : 'disabled'}><i class="fa-solid fa-circle-plus"></i>Add all pins${notIn ? ` (${notIn})` : ''}</button>
     <button class="btn sm ghost" data-act="suggest" ${n >= 4 ? '' : 'disabled'} title="Reorders the stops between the first and last to make the drive shorter"><i class="fa-solid fa-wand-magic-sparkles"></i>Suggest order</button>
@@ -1436,6 +1453,7 @@ function openEditor(id, fly = true){
   if (innerWidth <= 820) $('#panel').classList.remove('collapsed'), updateHandle();
   renderEditor(true); renderMap();
   if (fly) flyToPin(p); else if (!map.getBounds().pad(-0.1).contains([p.lat, p.lng])) map.panTo([p.lat, p.lng]);
+  else setTimeout(() => popPin(id), 30);
 }
 function closeEditor(){
   ui.editorPinId = null; ui.stayPick = false; coalesce = null; $('#editor').hidden = true; $('#editor').innerHTML = '';
@@ -1573,7 +1591,7 @@ document.addEventListener('click', async e => {
     case 'toggle-layer': change('Show/hide layer', t => { const l = t.layers.find(x => x.id === id); l.visible = !l.visible; }); break;
     case 'layer-menu': layerMenu(el, id); break;
     case 'open-pin': openEditor(id); break;
-    case 'focus-pin': { const p = pinById(id); if (p) { ui.selectedPinId = id; flyToPin(p); renderMap(); markers.get(id)?.m.openTooltip(); } break; }
+    case 'focus-pin': { const p = pinById(id); if (p) { ui.selectedPinId = id; renderMap(); flyToPin(p); setTimeout(() => markers.get(id)?.m.openTooltip(), 500); } break; }
     case 'close-editor': closeEditor(); break;
     case 'delete-pin': deletePin(ui.editorPinId); break;
     case 'set-color': lastStyle.color = el.dataset.c; change('Change color', t => { pinById(ui.editorPinId).color = el.dataset.c; }); break;
@@ -1811,7 +1829,7 @@ function pickResult(i){
   div.innerHTML = `<div class="pp-title">${esc(r.name)}</div><div class="pp-sub">${esc(r.address && r.address !== r.name ? r.address : r.sub || '')}</div><button class="btn blue" data-pp="add"><i class="fa-solid fa-plus"></i>Add as a pin</button>${ui.step === 'route' ? '<button class="btn green" data-pp="addroute"><i class="fa-solid fa-route"></i>Add pin + add to route</button>' : ''}${ui.step !== 'pins' && trip().route.length >= 2 ? '<button class="btn yellow" data-pp="waypoint"><span class="wpb">W</span>Add as a waypoint</button>' : ''}<a class="btn ghost" href="${esc(gmapsUrl(r))}" target="_blank" rel="noopener" style="width:100%;margin-top:6px;text-decoration:none;color:var(--text)"><i class="fa-solid fa-arrow-up-right-from-square"></i>Open in Google Maps</a>`;
   div.addEventListener('click', ev => { const b = ev.target.closest('[data-pp]'); if (!b) return;
     if (b.dataset.pp === 'waypoint') { addWaypointAt(L.latLng(r.lat, r.lng)); map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; return; }
-    addPinAt(L.latLng(r.lat, r.lng), {name: r.name, place: r.place, address: r.address, poi: r.poi, toRoute: b.dataset.pp === 'addroute', icon: lastStyle.icon === 'location-dot' && kindIcon(r.kind) !== 'location-dot' ? kindIcon(r.kind) : undefined});
+    addPinAt(L.latLng(r.lat, r.lng), {name: r.name, place: r.place, address: r.address, poi: r.poi, toRoute: b.dataset.pp === 'addroute'});
     map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; });
   previewMarker.bindPopup(div, {minWidth: 250, maxWidth: 300, autoPanPadding: [40, 90]});
   setTimeout(() => previewMarker && previewMarker.openPopup(), 750);
@@ -2218,6 +2236,7 @@ if (trip().pins.length) fitTrip();
 if (!storageOK) toast('This browser is blocking saving. Your trips won’t be kept after you close the page.', {err: true, ms: 12000});
 if (!prefs.seenWelcome) showWelcome();
 setTimeout(cleanupPhotos, 8000);
+setTimeout(() => trip().pins.forEach(p => { if (p.autoName && !p.address && !p.addrTried && !p.poi) fillPlace(p.id, true); }), 3000);
 </script>
 </body>
 </html>
