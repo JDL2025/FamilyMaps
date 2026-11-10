@@ -864,19 +864,50 @@ async function runPlaceQueue(){
       if (!r.ok && r.status !== 404) throw new Error('reverse ' + r.status);
       const a = (r.json && r.json.address) || {};
       const place = {city: a.city || a.town || a.village || a.hamlet || a.municipality || a.county || '', state: a.state || a.province || a.region || '', country: a.country || '', cc: (a.country_code || '').toUpperCase()};
-      let addr = a.house_number && a.road ? fmtAddress(a.house_number, a.road, place.city, place.state, a.postcode, place.cc, place.country) : '';
-      if (!addr) {   // the click landed on a street, park or landmark: use the nearest real street address
+      let addr = '', matched = false;
+      if (!p.autoName) {
+        /* Imported / named pins (e.g. from Google My Maps, whose export has no addresses):
+           look the NAME up near the pin. Towns and parks get no street address; businesses,
+           campgrounds etc. get theirs. Never guess an address from the nearest building. */
+        const m = await nameMatch(p);
+        if (m) { matched = true; const mp = m.properties;
+          if (mp.street && !['place', 'boundary'].includes(mp.osm_key)) addr = fmtAddress(mp.housenumber, mp.street, place.city || mp.city, place.state || mp.state, mp.postcode, place.cc, place.country); }
+        else if (a.house_number && a.road && ['house', 'building', 'residential', 'apartments', 'detached'].includes(r.json && r.json.type) && !(r.json && r.json.name)) addr = fmtAddress(a.house_number, a.road, place.city, place.state, a.postcode, place.cc, place.country);
+      } else addr = a.house_number && a.road ? fmtAddress(a.house_number, a.road, place.city, place.state, a.postcode, place.cc, place.country) : '';
+      if (!addr && p.autoName) {   // a dropped pin landed on a street, park or landmark: use the nearest real street address
         try { const ph = await fetchJSON(`${PHOTON}/reverse?lat=${p.lat}&lon=${p.lng}&layer=house&limit=5&radius=0.15&lang=en`, 8000);
           const h = ((ph.json && ph.json.features) || []).find(x => x.properties.housenumber && x.properties.street);
           if (h) { const hp = h.properties; addr = fmtAddress(hp.housenumber, hp.street, place.city || hp.city, place.state || hp.state, hp.postcode || a.postcode, place.cc, place.country); } } catch (e) {}
       }
-      if (!addr && a.road) addr = fmtAddress('', a.road, place.city, place.state, a.postcode, place.cc, place.country);
+      if (!addr && a.road && p.autoName) addr = fmtAddress('', a.road, place.city, place.state, a.postcode, place.cc, place.country);
       const q = trip().pins.find(x => x.id === id);
-      if (q) { q.place = place; q.addrTried = true; if (!q.address && addr) q.address = addr; if (q.autoName && q.name === 'New pin' && placeShort(place)) q.name = placeShort(place); scheduleSave(); renderMap(); if (!ui.editorPinId || ui.editorPinId === id) renderPanelSoft(); }
+      if (q) { q.place = place; q.addrTried = true; if (matched) q.poi = true; if (!q.address && addr) { q.address = addr; if (addrJob) addrJob.found++; } if (q.autoName && q.name === 'New pin' && placeShort(place)) q.name = placeShort(place); scheduleSave(); renderMap(); if (!ui.editorPinId || ui.editorPinId === id) renderPanelSoft(); }
     } catch (e) { /* offline: leave blank, will retry later */ placeTried.delete(id); }
+    if (addrJob && addrJob.ids.has(id)) { addrJob.ids.delete(id); if (!addrJob.ids.size) { const j = addrJob; addrJob = null; toast(j.found ? `Found street addresses for ${j.found} of ${j.total} imported places. Towns, parks and personal places have none; you can type one in any pin.` : `Done looking up addresses. None of these ${j.total} places had one to find (towns, parks and personal places don’t). You can type an address into any pin.`, {ms: 9000}); } }
     await sleep(1100);
   }
   placeBusy = false;
+}
+let addrJob = null;
+function lookupImported(pins){
+  if (!pins.length) return;
+  addrJob = {total: pins.length, found: 0, ids: new Set(pins.map(p => p.id))};
+  pins.forEach(p => fillPlace(p.id, true));
+  toast(`Looking up addresses for ${pins.length} places in the background. This takes about ${Math.max(1, Math.round(pins.length * 1.6 / 60))} minute${pins.length * 1.6 > 90 ? 's' : ''}.`, {ms: 7000});
+}
+async function nameMatch(p){
+  const words = s => norm(s).split(' ').filter(w => w.length > 1 && !['the', 'and', 'of'].includes(w));
+  const nw = words(p.name.replace(/,.*$/, '')); if (!nw.length) return null;
+  const url = `${PHOTON}/api/?q=${encodeURIComponent(p.name)}&lat=${p.lat}&lon=${p.lng}&zoom=14&location_bias_scale=0.1&limit=6&lang=en`;
+  let r = await fetchJSON(url, 10000).catch(() => null);
+  if (!r || !r.ok) { await sleep(800); r = await fetchJSON(url, 10000).catch(() => null); }
+  for (const f of (r && r.json && r.json.features) || []) {
+    const fw = words(f.properties.name || ''); if (!fw.length) continue;
+    const hit = nw.filter(w => fw.includes(w)).length / Math.min(nw.length, fw.length);
+    const d = haversine(p, {lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0]});
+    if (hit >= 0.6 && d < 5000) return f;
+  }
+  return null;
 }
 function photonPlace(pr){
   const placeTypes = ['city','town','village','hamlet','municipality','locality'];
@@ -2167,6 +2198,7 @@ async function importFile(file){
     if (choice === 'new') { const t = newTrip(res.name); t.layers = res.layers; t.activeLayerId = res.layers[0].id; t.pins = res.pins; db.trips.push(normalizeTrip(t)); switchTrip(t.id); setStep('pins'); }
     else { change('Import pins', t => { t.layers.push(...res.layers); t.pins.push(...res.pins); }); fitTrip(); }
     toast(`Imported ${res.pins.length} places.`);
+    lookupImported(res.pins);
   } catch (err) {
     console.error(err);
     modal({title: 'That file couldn’t be opened', html: `<p>Make sure it’s a KML or KMZ file exported from Google My Maps, or a backup file from this site.</p><p style="font-size:14px">${esc(err.message || '')}</p>`, buttons: [{label: 'OK', kind: 'blue'}]});
@@ -2459,7 +2491,7 @@ if (trip().pins.length) fitTrip();
 if (!storageOK) toast('This browser is blocking saving. Your trips won’t be kept after you close the page.', {err: true, ms: 12000});
 if (!prefs.seenWelcome) showWelcome();
 setTimeout(cleanupPhotos, 8000);
-setTimeout(() => trip().pins.forEach(p => { if (p.autoName && !p.address && !p.addrTried && !p.poi) fillPlace(p.id, true); }), 3000);
+setTimeout(() => { const need = trip().pins.filter(p => !p.address && !p.addrTried && !p.poi && !p.fromSug); if (need.length > 3) lookupImported(need); else need.forEach(p => fillPlace(p.id, true)); }, 3000);
 </script>
 </body>
 </html>
