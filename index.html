@@ -167,6 +167,7 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .guide li.done .n{background:var(--route);color:#06210f}
 .leg .retry{border:none;background:none;color:#93c5fd;text-decoration:underline;padding:0;font-size:14px}
 .sortable-ghost{opacity:.35}
+.seg-list{min-height:12px}
 .sortable-chosen .stop-main{background:var(--panel3)}
 .day{margin-top:16px;border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .day-head{padding:12px 14px;background:linear-gradient(90deg,rgba(245,158,11,.2),rgba(245,158,11,.05));border-bottom:1px solid var(--line)}
@@ -1538,7 +1539,7 @@ function renderPanel(){
   else if (ui.step === 'route') body.innerHTML = routeView();
   else body.innerHTML = daysView();
   body.scrollTop = top;
-  if (ui.step === 'route') setupSortable();
+  if (ui.step === 'route') setupSortable(); else if (ui.step === 'days') setupSegSortable(); else killSegSortables();
   ensureRoute();
   if (ui.step === 'days') fillRoutePlaces();
   renderEditor();
@@ -1649,6 +1650,24 @@ function setupSortable(){
     }});
 }
 
+let segSortables = [];
+function killSegSortables(){ segSortables.forEach(x => x.destroy()); segSortables = []; }
+function setupSegSortable(){
+  killSegSortables();
+  if (!window.Sortable || ui.review) return;
+  const lists = [...document.querySelectorAll('#panelBody .seg-list')];
+  // every stop appears once as a normal row; a stop you slept at also appears (greyed) at the top of the next segment
+  const finish = () => {
+    ui.sorting = false;
+    const order = [...document.querySelectorAll('#panelBody .seg-list > li.stop:not(.woke)')].map(li => li.dataset.sid);
+    const cur = trip().route.map(s => s.sid);
+    if (order.length === cur.length && order.join() !== cur.join()) change('Reorder stops', t => { const m = new Map(t.route.map(s => [s.sid, s])); t.route = order.map(id => m.get(id)).filter(Boolean); });
+    else { ui.panelDirty = false; renderPanel(); }
+  };
+  lists.forEach(el => segSortables.push(Sortable.create(el, {group: 'segs', handle: '.drag', draggable: '.stop', animation: 150, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen', fallbackTolerance: 3,
+    forceFallback: true, fallbackOnBody: true, scroll: true, bubbleScroll: true, onStart: () => { ui.sorting = true; }, onEnd: finish})));
+}
+
 /* ---- Step 3: days ---- */
 function daysView(){
   const t = trip(); const n = t.route.length;
@@ -1663,7 +1682,7 @@ function daysView(){
     const nights = t.route.filter((s, i) => s.overnight && i > 0 && i < n - 1).length;
     const stays = t.route.filter((s, i) => s.overnight && i > 0 && i < n - 1 && pinById(s.pinId)?.stay).length;
     html += `<div class="guide"><ol>
-      <li class="done"><span class="n"><i class="fa-solid fa-check"></i></span><span>You have ${n} stops. To change their order, <a href="#" data-act="go" data-step="route" style="color:#93c5fd">go back to the Route menu</a>.</span></li>
+      <li class="done"><span class="n"><i class="fa-solid fa-check"></i></span><span>You have ${n} stops. Drag <b><i class="fa-solid fa-grip-lines"></i></b> to change their order, or <a href="#" data-act="go" data-step="route" style="color:#93c5fd">go back to the Route menu</a> to add or remove stops.</span></li>
       <li class="${nights ? 'done' : ''}"><span class="n">${nights ? '<i class="fa-solid fa-check"></i>' : '2'}</span><span>On stops where you’ll sleep, press <b><i class="fa-solid fa-moon"></i> End segment</b>. Use <b>−</b> and <b>+</b> to stay more than one night.${nights ? ` You’ve ended ${nights} segment${nights === 1 ? '' : 's'}.` : ''}</span></li>
       <li class="${nights && stays === nights ? 'done' : ''}"><span class="n">${nights && stays === nights ? '<i class="fa-solid fa-check"></i>' : '3'}</span><span>Add accommodation details by pressing <b>Add Accommodation Details</b>.</span></li>
     </ol></div>`;
@@ -1687,7 +1706,7 @@ function daysView(){
     html += `<div class="day" style="--dc:${col}"><div class="day-head"><div class="dh"><div class="d1">Segment ${d.n}${dateTxt}</div>
       <div class="d2">${esc(from)}${from !== to ? ' → ' + esc(to) : ''}</div>
       <div class="d3"><span><b style="color:var(--text)">${miles(d.d)}</b> · ${hrs(d.s)} driving</span>${long ? '<span class="pill warn"><i class="fa-solid fa-triangle-exclamation"></i>Long drive</span>' : ''}${d.ferry ? '<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry</span>' : ''}${d.missing ? `<span class="pill err">${d.missing} drive${d.missing === 1 ? '' : 's'} missing</span>` : ''}</div></div>
-      <button class="mini-btn" data-act="zoom-day" data-i="${di}" title="Show this segment on the map"><i class="fa-solid fa-magnifying-glass-location"></i></button></div><ol class="stops" style="margin:0">`;
+      <button class="mini-btn" data-act="zoom-day" data-i="${di}" title="Show this segment on the map"><i class="fa-solid fa-magnifying-glass-location"></i></button></div><ol class="stops seg-list" style="margin:0">`;
     d.idx.forEach((i, k) => {
       const s = t.route[i]; const p = pinById(s.pinId); const woke = k === 0 && d.seg > 0; const last = i === n - 1;
       const endsDay = k === d.idx.length - 1 && !last;
@@ -1705,7 +1724,8 @@ function daysView(){
         if (k === d.idx.length - 1) sum = `<div class="seg-total"><i class="fa-solid fa-flag-checkered"></i><span><b>Segment ${d.n} total:</b> ${miles(dd)} · ${hrs(tt)} driving${miss ? ' (some drives still loading)' : ''}</span></div>`;
         else if (k > 1) sum = `<div class="seg-sofar">So far this segment: ${miles(dd)} · ${hrs(tt)}</div>`;
       }
-      html += `<li class="stop">${k > 0 ? legHtml(st.legs[i - 1], t) : ''}<div class="stop-main" style="padding-left:10px"><span class="snum" style="background:${col}">${i + 1}</span>
+      const canDrag = !woke && !ui.review;
+      html += `<li class="stop${woke ? ' woke' : ''}" data-sid="${s.sid}">${k > 0 ? legHtml(st.legs[i - 1], t) : ''}<div class="stop-main" style="padding-left:${canDrag ? 4 : ui.review ? 10 : 50}px">${canDrag ? '<button class="drag" aria-label="Drag to reorder"><i class="fa-solid fa-grip-lines"></i></button>' : ''}<span class="snum" style="background:${col}">${i + 1}</span>
         <span class="txt" data-act="focus-pin" data-id="${p.id}"><b>${esc(p.name)}</b>${pinLabel(p) ? `<small>${esc(pinLabel(p))}</small>` : ''}</span>${right}</div>${sum}${extra}</li>`;
     });
     html += `</ol></div>`;
