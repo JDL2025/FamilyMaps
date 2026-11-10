@@ -207,6 +207,9 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .basemaps{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;display:grid;gap:6px;box-shadow:0 10px 26px rgba(0,0,0,.45)}
 .basemaps button{min-width:150px;min-height:44px;text-align:left;padding:0 12px;border-radius:9px;border:1px solid transparent;background:var(--panel2);font-weight:700;display:flex;align-items:center;gap:10px}
 .basemaps button.on{border-color:var(--pins);background:#1d2a40}
+.bm-group{font-size:12px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;padding:6px 6px 2px}
+.bm-new{background:var(--route);color:#06210f;border-radius:999px;padding:1px 7px;font-size:11px;margin-left:4px;letter-spacing:0}
+.leaflet-gl-layer{z-index:1}
 .banner{position:absolute;left:50%;transform:translateX(-50%);top:76px;z-index:990;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 16px;border-radius:14px;font-weight:700;font-size:16px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:calc(100% - 24px)}
 .banner.add{background:var(--pins);color:#fff}
 .banner.route{background:var(--route);color:#06210f}
@@ -664,20 +667,53 @@ map.attributionControl.addAttribution('Directions <a href="https://valhalla.gith
 const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
 const esri = (path, o = {}) => L.tileLayer(ESRI + path + '/MapServer/tile/{z}/{y}/{x}', Object.assign({maxZoom: 19, attribution: 'Powered by <a href="https://www.esri.com">Esri</a>'}, o));
+/* Sharp maps: drawn on your device from map data (like Google Maps) using MapLibre + OpenFreeMap.
+   Classic maps: pre-drawn picture tiles from Esri / OpenTopoMap. */
+const MAPLIBRE_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.css';
+const MAPLIBRE_JS  = 'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js';
+const MLL_JS       = 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js';
+const OFM_ATTR = '<a href="https://openfreemap.org">OpenFreeMap</a> · &copy; <a href="https://www.openmaptiles.org/">OpenMapTiles</a> · Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+let mapLibreReady = null;
+function ensureMapLibre(){
+  if (!mapLibreReady) mapLibreReady = (async () => {
+    if (!document.querySelector(`link[href="${MAPLIBRE_CSS}"]`)) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = MAPLIBRE_CSS; document.head.appendChild(l); }
+    if (!window.maplibregl) await loadScript(MAPLIBRE_JS);
+    if (!L.maplibreGL) await loadScript(MLL_JS);
+    if (!window.maplibregl || !L.maplibreGL) throw new Error('map library missing');
+    if (!maplibregl.supported || maplibregl.supported()) return true;
+    throw new Error('WebGL not available');
+  })().catch(e => { mapLibreReady = null; throw e; });
+  return mapLibreReady;
+}
+const vector = style => () => [L.maplibreGL({style: 'https://tiles.openfreemap.org/styles/' + style, attribution: OFM_ATTR, interactive: false})];
 const BASEMAPS = {
-  dark:      {label: 'Dark',      icon: 'moon',     make: () => [esri('Canvas/World_Dark_Gray_Base', {maxNativeZoom: 16, attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, HERE, Garmin, &copy; OpenStreetMap contributors'}), esri('Canvas/World_Dark_Gray_Reference', {maxNativeZoom: 16, attribution: ''})]},
-  streets:   {label: 'Streets',   icon: 'road',     make: () => [esri('World_Street_Map', {attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors'})]},
-  satellite: {label: 'Satellite', icon: 'earth-americas', make: () => [esri('World_Imagery', {attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, Maxar, Earthstar Geographics'}), esri('Reference/World_Transportation', {attribution: '', opacity: .8}), esri('Reference/World_Boundaries_and_Places', {attribution: ''})]},
-  terrain:   {label: 'Terrain',   icon: 'mountain', make: () => [L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {subdomains: 'abc', maxZoom: 17, attribution: OSM_ATTR + ', SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a>'})]}
+  vstreets:  {group: 'Sharp maps', label: 'Streets',   icon: 'road',     vector: true, make: vector('liberty')},
+  vdark:     {group: 'Sharp maps', label: 'Dark',      icon: 'moon',     vector: true, make: vector('dark')},
+  vlight:    {group: 'Sharp maps', label: 'Light',     icon: 'sun',      vector: true, make: vector('positron')},
+  satellite: {group: 'Classic maps', label: 'Satellite', icon: 'earth-americas', make: () => [esri('World_Imagery', {attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, Maxar, Earthstar Geographics'}), esri('Reference/World_Transportation', {attribution: '', opacity: .8}), esri('Reference/World_Boundaries_and_Places', {attribution: ''})]},
+  terrain:   {group: 'Classic maps', label: 'Terrain',   icon: 'mountain', make: () => [L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {subdomains: 'abc', maxZoom: 17, attribution: OSM_ATTR + ', SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a>'})]},
+  streets:   {group: 'Classic maps', label: 'Streets (classic)', icon: 'road', make: () => [esri('World_Street_Map', {attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors'})]},
+  dark:      {group: 'Classic maps', label: 'Dark (classic)',    icon: 'moon', make: () => [esri('Canvas/World_Dark_Gray_Base', {maxNativeZoom: 16, attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, HERE, Garmin, &copy; OpenStreetMap contributors'}), esri('Canvas/World_Dark_Gray_Reference', {maxNativeZoom: 16, attribution: ''})]}
 };
-let baseLayers = [];
-function setBasemap(key){
+let baseLayers = [], basemapSeq = 0;
+async function setBasemap(key){
   if (!BASEMAPS[key]) key = 'dark';
-  baseLayers.forEach(l => map.removeLayer(l)); baseLayers = BASEMAPS[key].make(); baseLayers.forEach(l => l.addTo(map));
+  const seq = ++basemapSeq; const b = BASEMAPS[key];
+  if (b.vector) {
+    try { await ensureMapLibre(); }
+    catch (e) { console.error(e); if (seq === basemapSeq) { toast('The sharp map couldn’t load on this device, so the classic map is showing.', {err: true, ms: 6000}); setBasemap(key === 'vdark' ? 'dark' : 'streets'); } return; }
+    if (seq !== basemapSeq) return;
+  }
+  baseLayers.forEach(l => map.removeLayer(l)); baseLayers = b.make(); baseLayers.forEach(l => l.addTo(map));
   prefs.basemap = key; savePrefs(); renderBasemapMenu();
 }
 function renderBasemapMenu(){
-  $('#basemapMenu').innerHTML = Object.entries(BASEMAPS).map(([k, b]) => `<button data-bm="${k}" class="${prefs.basemap === k ? 'on' : ''}"><i class="fa-solid fa-${b.icon}"></i>${b.label}</button>`).join('');
+  let g = '', h = '';
+  for (const [k, b] of Object.entries(BASEMAPS)) {
+    if (b.group !== g) { g = b.group; h += `<div class="bm-group">${g}${g === 'Sharp maps' ? ' <span class="bm-new">New</span>' : ''}</div>`; }
+    h += `<button data-bm="${k}" class="${prefs.basemap === k ? 'on' : ''}"><i class="fa-solid fa-${b.icon}"></i>${b.label}</button>`;
+  }
+  $('#basemapMenu').innerHTML = h;
 }
 $('#styleBtn').onclick = e => { e.stopPropagation(); $('#basemapMenu').hidden = !$('#basemapMenu').hidden; };
 $('#basemapMenu').onclick = e => { const b = e.target.closest('[data-bm]'); if (b) { setBasemap(b.dataset.bm); $('#basemapMenu').hidden = true; } };
