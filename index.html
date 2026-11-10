@@ -143,6 +143,21 @@ body.pin-dragging .pin-row{cursor:grabbing}
 .totals.days{background:linear-gradient(135deg,rgba(245,158,11,.16),rgba(245,158,11,.04));border-color:rgba(245,158,11,.4)}
 .stops{list-style:none;margin:12px 0 0;padding:0}
 #stopList .stop{margin-bottom:8px}
+.route-head{list-style:none;display:flex;align-items:center;gap:6px;margin:14px 0 8px;padding:6px 6px 6px 4px;border-radius:12px;background:var(--panel2);border:1px solid var(--line)}
+.route-head:first-child{margin-top:0}
+.route-head.active{box-shadow:inset 4px 0 0 var(--route)}
+.route-head .rh-name{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:none;color:var(--text);text-align:left;padding:6px 6px}
+.route-head .rh-name b{display:block;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.route-head .rh-name small{display:block;font-size:13px;color:var(--muted)}
+.route-head.active .rh-name small{color:#86efac}
+.route-head .rh-ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--panel3);color:var(--text);flex:none;font-size:16px}
+.route-swatch{display:inline-block;vertical-align:middle;margin-left:6px}
+.route-empty{list-style:none;padding:10px 14px;margin:0 0 8px;color:var(--muted);font-size:14px;border:1px dashed var(--line);border-radius:12px}
+.route-div{list-style:none;display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:13px;font-weight:700;color:var(--muted);border-top:1px solid var(--line);background:rgba(255,255,255,.03)}
+.route-div i{color:var(--text)}
+.leg.gap .arrow{color:var(--faint)}
+.mode-list{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+.mode-list span{color:var(--muted);font-size:15px}.mode-list i{width:22px;color:var(--text)}
 .stop{background:var(--panel2);border:1px solid var(--line);border-radius:12px;margin-bottom:0}
 .stop-main{display:flex;align-items:center;gap:8px;padding:8px 6px 8px 4px;min-height:56px}
 .stop .drag{width:38px;height:44px;display:grid;place-items:center;color:var(--faint);cursor:grab;touch-action:none;flex:none;border:none;background:none;font-size:17px}
@@ -163,9 +178,6 @@ body.pin-dragging .pin-row{cursor:grabbing}
 .seg-total{display:flex;align-items:center;gap:8px;margin:0 10px 10px 50px;padding:7px 11px;border-radius:10px;background:color-mix(in srgb,var(--dc) 18%,transparent);border:1px solid color-mix(in srgb,var(--dc) 55%,transparent);font-size:14px;color:var(--text)}
 .seg-total i{color:var(--dc)}
 .seg-sofar{margin:-2px 10px 8px 50px;font-size:13px;color:var(--faint)}
-.seg-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:18px;padding:5px;border-radius:14px;background:var(--panel2);border:1px solid var(--line)}
-.seg-tabs button{min-height:46px;border:none;border-radius:10px;background:transparent;color:var(--muted);font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px}
-.seg-tabs button.on{background:var(--days);color:#2a1700}
 .guide{margin-top:10px;padding:12px 14px;border-radius:14px;background:var(--panel2);border:1px solid var(--line)}
 .guide ol{margin:0;padding:0;list-style:none;display:grid;gap:9px}
 .guide li{display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--muted)}
@@ -293,8 +305,6 @@ body.addr-busy .toasts{bottom:100px}
 .measure-label{background:var(--measure);color:#2a2000;border:none;font-weight:700;font-size:13px;padding:3px 8px;border-radius:8px;box-shadow:none}
 .measure-label:before{display:none}
 .routepicking .leaflet-marker-icon{cursor:pointer}
-.review-card{margin-top:14px;border:2px solid rgba(251,191,36,.7);border-radius:14px;padding:12px;background:rgba(251,191,36,.07)}
-.review-card .sug-row .btn{min-height:38px;padding:6px 11px}
 .rp-card{border:2px solid var(--route);border-radius:14px;padding:14px;background:rgba(34,197,94,.06)}
 .rp-card h3{margin:2px 0 0;font-size:19px}
 .rp-step{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#86efac}
@@ -330,6 +340,7 @@ body.addr-busy .toasts{bottom:100px}
 .fmt{display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--text);text-align:left}
 .fmt:hover,.fmt:focus-visible{border-color:var(--doc);background:var(--panel3)}
 .fmt i{font-size:30px;flex:none;width:34px;text-align:center}
+.fmt.on{border-color:var(--route)}
 .fmt b{display:block;font-size:17px}.fmt small{display:block;color:var(--muted);font-size:14px;margin-top:2px}
 .modal .btn-row{margin-top:20px;justify-content:flex-end;position:sticky;bottom:-22px;background:var(--panel);padding:12px 0 22px;margin-bottom:-22px;z-index:2}
 .welcome-steps{display:grid;gap:10px;margin:14px 0}
@@ -338,19 +349,10 @@ body.addr-busy .toasts{bottom:100px}
 .welcome-steps p{margin:2px 0 0;font-size:15px}
 .drop-overlay{position:fixed;inset:0;z-index:5000;background:rgba(59,130,246,.25);border:4px dashed var(--pins);display:grid;place-items:center;font-size:24px;font-weight:700;pointer-events:none}
 
-/* ---------- Marker fix, suggestions, day colors, stays ---------- */
+/* ---------- Marker fix, day colors, stays ---------- */
 .mk svg{z-index:0!important}
 .mk i{z-index:1}
 .mk .mk-num{z-index:2}
-.sug-mk{width:36px;height:36px;border-radius:50%;background:rgba(14,18,24,.88);border:3px dashed #fbbf24;color:#fbbf24;display:grid;place-items:center;font:700 19px/1 var(--font);box-shadow:0 0 0 6px rgba(251,191,36,.25);animation:sugpulse 1.8s ease-in-out infinite}
-@keyframes sugpulse{50%{box-shadow:0 0 0 12px rgba(251,191,36,.06)}}
-.sug-card{margin-top:14px;border:2px dashed rgba(251,191,36,.6);border-radius:14px;padding:12px;background:rgba(251,191,36,.06)}
-.sug-title{display:flex;align-items:center;gap:8px;font-weight:700;color:#fbbf24}
-.sug-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
-.sug-row .q{width:30px;height:30px;border-radius:50%;border:2px dashed #fbbf24;color:#fbbf24;display:grid;place-items:center;font-weight:700;flex:none}
-.sug-row .txt{flex:1;min-width:0;cursor:pointer}
-.sug-row .txt b{display:block}
-.sug-row .txt small{color:var(--muted);font-size:13px}
 .day{border-left:6px solid var(--dc,var(--days))}
 .day-head{display:flex;gap:8px;align-items:flex-start;background:linear-gradient(90deg,color-mix(in srgb,var(--dc,#f59e0b) 24%,transparent),transparent)}
 .day-head .dh{flex:1;min-width:0}
@@ -494,6 +496,14 @@ const LEGS_KEY  = 'lfm.legs.v2';
 const PREFS_KEY = 'lfm.prefs.v1';
 const VALHALLA = 'https://valhalla1.openstreetmap.de/route';
 const OSRM = ['https://router.project-osrm.org/route/v1/driving/', 'https://routing.openstreetmap.de/routed-car/route/v1/driving/'];
+const OSRM_FOOT = ['https://routing.openstreetmap.de/routed-foot/route/v1/driving/'];
+/* A trip can have several routes in a row (drive, then hike, then drive...). Each stop belongs to one route (stop.r). */
+const ROUTE_TYPES = {
+  drive: {label: 'Driving', verb: 'Drive', icon: 'car-side', noun: 'drive', of: 'of driving', short: 'driving'},
+  hike: {label: 'Hiking', verb: 'Hike', icon: 'person-hiking', noun: 'hike', of: 'of hiking', short: 'hiking'},
+  tour: {label: 'Group tour', verb: 'Tour', icon: 'bus', noun: 'tour leg', of: 'on the tour', short: 'on tour'}};
+const MODES = ['drive', 'hike', 'tour'];
+const ROUTE_BLUE = '#2f6fed';
 const PHOTON = 'https://photon.komoot.io';
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
 const DOCX_URL  = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js';
@@ -572,10 +582,10 @@ async function fetchJSON(url, ms = 15000){ const c = new AbortController(); cons
    DATA + SAVING
    ========================================================= */
 let db = {version: APP_VERSION, trips: [], currentId: null};
-let prefs = {basemap: 'vstreets', step: 'pins', seenWelcome: false, segMode: 'manual'};
+let prefs = {basemap: 'vstreets', step: 'pins', seenWelcome: false};
 let storageOK = true;
 
-function newTrip(name){ const lid = uid(); return {id: uid(), name: name || 'New trip', created: Date.now(), updated: Date.now(), layers: [{id: lid, name: 'Places', visible: true}], activeLayerId: lid, pins: [], route: [], startDate: '', maxDayHours: 7}; }
+function newTrip(name){ const lid = uid(), rid = uid(); return {id: uid(), name: name || 'New trip', created: Date.now(), updated: Date.now(), layers: [{id: lid, name: 'Places', visible: true}], activeLayerId: lid, pins: [], route: [], startDate: '', routes: [{id: rid, type: 'drive', joined: true, name: ''}], activeRouteId: rid}; }
 function normalizeTrip(t){
   if (!t.id) t.id = uid();
   t.name = String(t.name || 'Untitled trip');
@@ -590,7 +600,15 @@ function normalizeTrip(t){
   t.route = (Array.isArray(t.route) ? t.route : []).filter(s => s && pids.has(s.pinId));
   t.route.forEach(s => { s.sid ||= uid(); s.via = Array.isArray(s.via) ? s.via.filter(v => v && isFinite(v.lat) && isFinite(v.lng)).map(v => ({id: v.id || uid(), lat: +v.lat, lng: +v.lng})) : []; if (typeof s.viaTo !== 'string') delete s.viaTo; s.overnight = !!s.overnight; s.nights = clamp(Math.round(Number(s.nights) || 1), 1, 30); if (typeof s.sugFrac !== 'number') delete s.sugFrac; });
   t.startDate = typeof t.startDate === 'string' ? t.startDate : '';
-  t.maxDayHours = clamp(Number(t.maxDayHours) || 7, 1, 20);
+  delete t.maxDayHours;
+  if (!Array.isArray(t.routes) || !t.routes.length) t.routes = [{id: uid(), type: 'drive', joined: true, name: ''}];
+  t.routes = t.routes.filter(r => r && r.id).map(r => ({id: r.id, type: ROUTE_TYPES[r.type] ? r.type : 'drive', joined: r.joined !== false, name: typeof r.name === 'string' ? r.name : ''}));
+  if (!t.routes.length) t.routes = [{id: uid(), type: 'drive', joined: true, name: ''}];
+  const rids = new Set(t.routes.map(r => r.id)); let lastR = t.routes[0].id;
+  t.route.forEach(st => { if (!rids.has(st.r)) st.r = lastR; lastR = st.r; });
+  const rord = new Map(t.routes.map((r, i) => [r.id, i]));   // keep each route's stops together, in route order
+  t.route = t.route.map((st, i) => [st, i]).sort((a, b) => rord.get(a[0].r) - rord.get(b[0].r) || a[1] - b[1]).map(x => x[0]);
+  if (!rids.has(t.activeRouteId)) t.activeRouteId = t.routes[t.routes.length - 1].id;
   return t;
 }
 function load(){
@@ -650,7 +668,7 @@ function redo(){ const h = H(); if (!h.redo.length) return; const e = h.redo.pop
 /* =========================================================
    UI STATE
    ========================================================= */
-const ui = {review: null, maxChanged: false, rp: null, moreIcons: false, sugs: [], sugBusy: false, stayPick: false, scrollToStay: false, step: 'pins', mode: null, editorPinId: null, selectedPinId: null, filter: '', collapsed: new Set(), sorting: false, panelDirty: false};
+const ui = {rp: null, moreIcons: false, stayPick: false, scrollToStay: false, step: 'pins', mode: null, editorPinId: null, selectedPinId: null, filter: '', collapsed: new Set(), sorting: false, panelDirty: false};
 
 /* ---------- toasts ---------- */
 function toast(msg, o = {}){
@@ -802,42 +820,32 @@ function renderMap(){
     rec.sig = sig;
   }
   for (const [id, rec] of markers) if (!seen.has(id)) { map.removeLayer(rec.m); markers.delete(id); }
-  drawRoute(); drawSuggestions(); drawWaypoints();
+  drawRoute(); drawWaypoints();
 }
 let lastRouteSig = null;
 function legSegs(t){ const out = []; let s = 0; for (let i = 0; i < t.route.length - 1; i++) { out.push(s); if (t.route[i + 1].overnight && i + 1 < t.route.length - 1) s++; } return out; }
 function drawRoute(){
-  const t = trip(); const legs = routeLegs(t); const segOf = legSegs(t);
-  const sig = t.id + '#' + legs.map((l, i) => l.key + ':' + (l.info ? l.info.status : 'none') + ':' + segOf[i]).join('|');
+  const t = trip(); const legs = routeLegs(t); const segOf = legSegs(t); const segs = hasSegments(t);
+  const sig = t.id + '#' + segs + '#' + legs.map((l, i) => l.key + ':' + l.mode + ':' + (l.info ? l.info.status : 'none') + ':' + segOf[i]).join('|');
   if (sig === lastRouteSig) return; lastRouteSig = sig;
   routeLayer.clearLayers();
+  const line = (c, o) => L.polyline(c, Object.assign({pane: 'routes', interactive: false, lineCap: 'round', lineJoin: 'round'}, o)).addTo(routeLayer);
   legs.forEach((l, i) => {
-    const info = l.info; const col = dayColor(segOf[i]);
+    const info = l.info; const col = segs ? dayColor(segOf[i]) : ROUTE_BLUE;   // blue until segments are added
     if (info && info.status === 'ok') {
       for (const seg of info.segs) {
         if (seg.c.length < 2) continue;
-        L.polyline(seg.c, {pane: 'routes', color: '#05080c', weight: 9, opacity: .55, interactive: false}).addTo(routeLayer);
-        L.polyline(seg.c, {pane: 'routes', color: col, weight: seg.m === 'ferry' ? 4 : 5, dashArray: seg.m === 'ferry' ? '2 9' : null, lineCap: 'round', opacity: .97, interactive: false}).addTo(routeLayer);
+        if (l.mode === 'gap') { line(seg.c, {color: '#94a3b8', weight: 2.5, dashArray: '12 10', opacity: .85}); continue; }
+        if (seg.m === 'ferry') { line(seg.c, {color: '#05080c', weight: 8, opacity: .45}); line(seg.c, {color: col, weight: 4, dashArray: '10 9', lineCap: 'butt', opacity: .97}); continue; }
+        if (l.mode === 'hike') { line(seg.c, {color: '#05080c', weight: 9, dashArray: '0.1 12', opacity: .6}); line(seg.c, {color: col, weight: 6, dashArray: '0.1 12', opacity: 1}); continue; }
+        if (l.mode === 'tour') { line(seg.c, {color: '#05080c', weight: 11, opacity: .55}); line(seg.c, {color: col, weight: 8, opacity: .97}); line(seg.c, {color: '#0b1220', weight: 2.5, opacity: .9}); continue; }
+        line(seg.c, {color: '#05080c', weight: 9, opacity: .55}); line(seg.c, {color: col, weight: 5, opacity: .97});
       }
     } else if (l.a && l.b) {
       const err = info && info.status === 'error';
       L.polyline([[l.a.lat, l.a.lng], [l.b.lat, l.b.lng]], {pane: 'routes', color: err ? '#ef4444' : '#94a3b8', weight: 3, dashArray: '6 9', opacity: .9, interactive: false}).addTo(routeLayer);
     }
   });
-}
-/* suggested overnight stops (shown with a ? until added) */
-const sugLayer = L.layerGroup().addTo(map);
-function drawSuggestions(){
-  sugLayer.clearLayers();
-  for (const s of liveSugs()) {
-    const m = L.marker([s.lat, s.lng], {icon: L.divIcon({className: '', html: '<div class="sug-mk">?</div>', iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -18], tooltipAnchor: [0, -20]}), zIndexOffset: 1500});
-    m.bindTooltip(`Suggested overnight: ${esc(s.name)}`, {className: 'pin-tip', direction: 'top'});
-    const div = document.createElement('div');
-    div.innerHTML = `<div class="pp-title">${esc(s.name)}</div><div class="pp-sub">Suggested overnight stop, about ${hrs(s.hours)} past ${esc(s.fromName)}</div><button class="btn amber" data-pp="add"><i class="fa-solid fa-bed"></i>Add as overnight stop</button><button class="btn ghost" data-pp="no">Not this one</button>`;
-    div.addEventListener('click', ev => { const b = ev.target.closest('[data-pp]'); if (!b) return; if (b.dataset.pp === 'add') addSuggestions([s.id]); else dismissSug(s.id); });
-    m.bindPopup(div, {minWidth: 240, maxWidth: 300});
-    m.addTo(sugLayer);
-  }
 }
 function fitTrip(){
   const t = trip(); const vis = new Set(t.layers.filter(l => l.visible).map(l => l.id));
@@ -884,7 +892,7 @@ function addPinAt(ll, opts = {}){
   const t = trip(); const id = uid();
   const p = {id, name: opts.name || 'New pin', lat: +ll.lat.toFixed(6), lng: +ll.lng.toFixed(6), color: opts.color || DEFAULT_COLOR, icon: opts.icon || 'location-dot', notes: '', links: [], layerId: t.activeLayerId, place: opts.place || null, autoName: !opts.name, address: opts.address || '', poi: !!opts.poi, stay: null};
   const layer = layerById(t.activeLayerId); if (layer && !layer.visible) layer.visible = true;
-  change('Add pin', t => { t.pins.push(p); if (opts.toRoute) t.route.push({sid: uid(), pinId: id, overnight: false}); });
+  change('Add pin', t => { t.pins.push(p); if (opts.toRoute) insertStop(t, id); });
   if (!p.place) fillPlace(id);
   if (!opts.quiet) undoToast(opts.toRoute ? 'Pin added to the route' : 'Pin added');
   return p;
@@ -1117,19 +1125,43 @@ function saveLegs(){
 }
 function trimLegCache(frac){ try { const arr = JSON.parse(localStorage.getItem(LEGS_KEY) || '[]'); localStorage.setItem(LEGS_KEY, JSON.stringify(arr.slice(0, Math.floor(arr.length * frac)))); } catch { try { localStorage.removeItem(LEGS_KEY); } catch {} } }
 
+const routeById = (t, id) => t.routes.find(r => r.id === id) || t.routes[0];
+function routeName(t, r){ const i = t.routes.indexOf(r); return r.name ? r.name : `Route ${i + 1}`; }
+/* the leg from stop i to stop i+1 travels by the type of the route stop i+1 belongs to.
+   'gap' = a route that doesn't start where the one before ended (you get there on your own) */
+function legMode(t, i){ const a = t.route[i], b = t.route[i + 1]; const R = routeById(t, b.r); return a.r !== b.r && !R.joined ? 'gap' : R.type; }
+function firstOfRoute(t, i){ return i === 0 || t.route[i - 1].r !== t.route[i].r; }
+function hasSegments(t){ const n = t.route.length; return t.route.some((s, i) => s.overnight && i > 0 && i < n - 1); }
 function routeLegs(t){
   const legs = [];
   for (let i = 0; i < t.route.length - 1; i++) {
     const a = t.pins.find(p => p.id === t.route[i].pinId), b = t.pins.find(p => p.id === t.route[i + 1].pinId);
-    if (!a || !b) { legs.push({i, a, b, key: null, info: null}); continue; }
-    const vias = legVias(t, i); const key = legKey(a, b, vias); legs.push({i, a, b, vias, sid: t.route[i].sid, key, info: legCache.get(key) || null});
+    const mode = legMode(t, i);
+    if (!a || !b) { legs.push({i, a, b, mode, key: null, info: null}); continue; }
+    if (mode === 'gap') { legs.push({i, a, b, mode, vias: [], sid: t.route[i].sid, key: 'gap:' + legKey(a, b), info: {status: 'ok', d: haversine(a, b), t: 0, segs: [{m: 'gap', c: [[a.lat, a.lng], [b.lat, b.lng]]}], ferry: null, gap: true}}); continue; }
+    const vias = legVias(t, i); const key = (mode === 'hike' ? 'H|' : '') + legKey(a, b, vias);
+    legs.push({i, a, b, mode, vias, sid: t.route[i].sid, key, info: legCache.get(key) || null});
   }
   return legs;
 }
+function modeTotals(legs, from, to){
+  const by = {}; for (let j = from; j < to; j++) { const l = legs[j]; if (!l || l.mode === 'gap' || !l.info || l.info.status !== 'ok') continue; (by[l.mode] ||= {d: 0, s: 0}); by[l.mode].d += l.info.d; by[l.mode].s += l.info.t; }
+  return by;
+}
+/* "84 mi · 1 h 15 min driving + 12 mi · 4 h hiking"  /  words: "84 miles of driving, about 1 hour 15 minutes" */
+function modeLine(by, words){
+  const used = Object.keys(by).filter(m => by[m] && by[m].d > 0);
+  if (!used.length) return words ? 'No travel' : '0 mi';
+  if (words) {
+    if (used.length === 1 && used[0] === 'drive') return `${milesWord(by.drive.d)}  ·  about ${hrsWord(by.drive.s)} of driving`;
+    return used.map(m => `${milesWord(by[m].d)} ${ROUTE_TYPES[m].of}, about ${hrsWord(by[m].s)}`).join('  ·  ');
+  }
+  return used.map(m => `${miles(by[m].d)} · ${hrs(by[m].s)} ${ROUTE_TYPES[m].short}`).join(' + ');
+}
 function routeStats(t){
   const legs = routeLegs(t); let d = 0, s = 0, missing = 0, pending = 0, errors = 0, ferries = 0;
-  for (const l of legs) { const x = l.info; if (x && x.status === 'ok') { d += x.d; s += x.t; if (x.ferry) ferries++; } else { missing++; if (x && x.status === 'error') errors++; else pending++; } }
-  return {legs, d, s, missing, pending, errors, ferries};
+  for (const l of legs) { if (l.mode === 'gap') continue; const x = l.info; if (x && x.status === 'ok') { d += x.d; s += x.t; if (x.ferry) ferries++; } else { missing++; if (x && x.status === 'error') errors++; else pending++; } }
+  return {legs, d, s, missing, pending, errors, ferries, by: modeTotals(legs, 0, legs.length)};
 }
 function simplify(pts, tol){
   if (pts.length < 3) return pts;
@@ -1159,17 +1191,18 @@ const routeQueue = []; let routeBusy = false; let lastRouteReq = 0;
 function ensureRoute(){
   const t = trip(); const legs = routeLegs(t); let chunk = null; const chunks = [];
   for (const l of legs) {
-    if (!l.key) continue;
+    if (!l.key || l.mode === 'gap') { chunk = null; continue; }
     if (l.info && l.info.status !== 'error') { if (l.info.status === 'ok') l.info.used = Date.now(); chunk = null; continue; }
     if (l.info && l.info.status === 'error' && !(l.info.kind === 'network' && Date.now() - l.info.at > 20000)) { chunk = null; continue; }
     if (l.a.lat === l.b.lat && l.a.lng === l.b.lng) { legCache.set(l.key, {status: 'ok', d: 0, t: 0, segs: [], ferry: null, used: Date.now()}); chunk = null; continue; }
     legCache.set(l.key, {status: 'pending'});
-    if (l.vias.length) { routeQueue.push({pts: [{lat: l.a.lat, lng: l.a.lng}, ...l.vias.map(v => ({lat: v.lat, lng: v.lng, via: true})), {lat: l.b.lat, lng: l.b.lng}], keys: [l.key]}); chunk = null; continue; }
+    const foot = l.mode === 'hike';
+    if (l.vias.length) { routeQueue.push({foot, pts: [{lat: l.a.lat, lng: l.a.lng}, ...l.vias.map(v => ({lat: v.lat, lng: v.lng, via: true})), {lat: l.b.lat, lng: l.b.lng}], keys: [l.key]}); chunk = null; continue; }
     const crow = haversine(l.a, l.b);
-    if (!chunk || chunk.legs.length >= 9 || chunk.lastIndex !== l.i - 1 || chunk.crow + crow > 1350000) { chunk = {pts: [l.a], legs: [], lastIndex: l.i, crow: 0}; chunks.push(chunk); }
+    if (!chunk || chunk.foot !== foot || chunk.legs.length >= 9 || chunk.lastIndex !== l.i - 1 || chunk.crow + crow > (foot ? 150000 : 1350000)) { chunk = {foot, pts: [l.a], legs: [], lastIndex: l.i, crow: 0}; chunks.push(chunk); }
     chunk.pts.push(l.b); chunk.legs.push(l.key); chunk.lastIndex = l.i; chunk.crow += crow;
   }
-  chunks.forEach(c => routeQueue.push({pts: c.pts.map(p => ({lat: p.lat, lng: p.lng})), keys: c.legs}));
+  chunks.forEach(c => routeQueue.push({foot: c.foot, pts: c.pts.map(p => ({lat: p.lat, lng: p.lng})), keys: c.legs}));
   runRouteQueue();
 }
 async function runRouteQueue(){
@@ -1178,12 +1211,12 @@ async function runRouteQueue(){
     const job = routeQueue.shift();
     const wait = 1100 - (Date.now() - lastRouteReq); if (wait > 0) await sleep(wait);
     lastRouteReq = Date.now();
-    const res = await getRoute(job.pts);
+    const res = await getRoute(job.pts, job.foot);
     if (res.ok) { res.legs.forEach((lg, i) => legCache.set(job.keys[i], lg)); saveLegsSoon(); }
-    else if ((res.code === 'NoRoute' || res.code === 'NoSegment') && job.keys.length > 1) {
-      for (let i = job.keys.length - 1; i >= 0; i--) routeQueue.unshift({pts: [job.pts[i], job.pts[i + 1]], keys: [job.keys[i]]});
+    else if ((res.code === 'NoRoute' || res.code === 'NoSegment' || res.code === 'TooFar') && job.keys.length > 1) {
+      for (let i = job.keys.length - 1; i >= 0; i--) routeQueue.unshift({foot: job.foot, pts: [job.pts[i], job.pts[i + 1]], keys: [job.keys[i]]});
     } else {
-      const msg = res.code === 'NoRoute' ? 'No driving route found between these stops — maybe water with no car ferry.' : res.code === 'NoSegment' ? 'One of these pins is too far from any road.' : 'Couldn’t reach the directions service. Check your internet connection.';
+      const msg = res.code === 'TooFar' ? 'This hike is too long to plan in one piece. Add a stop partway.' : res.code === 'NoRoute' ? (job.foot ? 'No walking path found between these stops.' : 'No driving route found between these stops — maybe water with no car ferry.') : res.code === 'NoSegment' ? (job.foot ? 'One of these pins is too far from any path.' : 'One of these pins is too far from any road.') : 'Couldn’t reach the directions service. Check your internet connection.';
       job.keys.forEach(k => legCache.set(k, {status: 'error', err: msg, kind: res.code || 'network', at: Date.now()}));
     }
     routeUpdated();
@@ -1192,18 +1225,18 @@ async function runRouteQueue(){
 }
 /* getRoute: Valhalla first (better drive times), OSRM as a backup.
    Returns {ok:true, legs:[{status,d,t,segs,ferry}]} or {ok:false, code:'NoRoute'|'NoSegment'|'network'} */
-async function getRoute(pts){
+async function getRoute(pts, foot){
   let crow = 0; for (let i = 1; i < pts.length; i++) crow += haversine(pts[i - 1], pts[i]);
   if (pts.length <= 10 && crow < 1400000) {
-    const v = await valhallaRoute(pts);
+    const v = await valhallaRoute(pts, foot);
     if (v.ok) return v;
-    if ((v.code === 'NoRoute' || v.code === 'NoSegment') && pts.length > 2) return v;   // caller splits into single drives
+    if ((v.code === 'NoRoute' || v.code === 'NoSegment' || v.code === 'TooFar') && pts.length > 2) return v;   // caller splits into single legs
     await sleep(500);
-    const o = await osrmRoute(pts);
+    const o = await osrmRoute(pts, foot);
     if (o.ok || v.code === 'network') return o;
     return o.code === 'network' ? v : o;
   }
-  return osrmRoute(pts);
+  return osrmRoute(pts, foot);
 }
 function decode6(str){
   let i = 0, lat = 0, lng = 0; const out = [];
@@ -1214,14 +1247,15 @@ function decode6(str){
   }
   return out;
 }
-async function valhallaRoute(pts){
-  const body = {locations: pts.map(p => ({lat: +p.lat.toFixed(6), lon: +p.lng.toFixed(6), type: p.via ? 'via' : 'break'})), costing: 'auto', units: 'kilometers', directions_type: 'maneuvers'};
+async function valhallaRoute(pts, foot){
+  const body = {locations: pts.map(p => ({lat: +p.lat.toFixed(6), lon: +p.lng.toFixed(6), type: p.via ? 'via' : 'break'})), costing: foot ? 'pedestrian' : 'auto', units: 'kilometers', directions_type: 'maneuvers'};
   try {
     const r = await fetchJSON(VALHALLA + '?json=' + encodeURIComponent(JSON.stringify(body)), 25000);
     const j = r.json;
     if (j && j.trip && j.trip.legs) return {ok: true, legs: j.trip.legs.map(parseValhallaLeg)};
     if (j && (j.error_code === 442 || j.error_code === 443)) return {ok: false, code: 'NoRoute'};
     if (j && (j.error_code === 171 || j.error_code === 170)) return {ok: false, code: 'NoSegment'};
+    if (j && j.error_code === 154) return {ok: false, code: 'TooFar'};
   } catch (e) {}
   return {ok: false, code: 'network'};
 }
@@ -1237,10 +1271,10 @@ function parseValhallaLeg(leg){
   segs.forEach(s => s.c = simplify(s.c, 0.00035));
   return {status: 'ok', d: (leg.summary.length || 0) * 1000, t: leg.summary.time || 0, segs, ferry, used: Date.now()};
 }
-async function osrmRoute(pts){
+async function osrmRoute(pts, foot){
   const coords = pts.map(p => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`).join(';');
   const wps = pts.some(p => p.via) ? '&waypoints=' + pts.map((p, i) => p.via ? null : i).filter(i => i !== null).join(';') : '';
-  for (const server of OSRM) {
+  for (const server of foot ? OSRM_FOOT : OSRM) {
     try {
       const r = await fetchJSON(server + coords + '?overview=false&steps=true&geometries=geojson' + wps, 25000);
       const j = r.json;
@@ -1295,6 +1329,52 @@ function drawWaypoints(){
   }));
 }
 
+/* ---------- routes (drive / hike / group tour) ---------- */
+function routeSwatch(type, col = ROUTE_BLUE){
+  const base = `<svg class="route-swatch" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true">`;
+  if (type === 'hike') return base + `<line x1="3" y1="6" x2="27" y2="6" stroke="${col}" stroke-width="5" stroke-linecap="round" stroke-dasharray="0.1 8"/></svg>`;
+  if (type === 'tour') return base + `<line x1="2" y1="6" x2="28" y2="6" stroke="${col}" stroke-width="8"/><line x1="2" y1="6" x2="28" y2="6" stroke="#0b1220" stroke-width="2.4"/></svg>`;
+  return base + `<line x1="2" y1="6" x2="28" y2="6" stroke="${col}" stroke-width="5" stroke-linecap="round"/></svg>`;
+}
+function routeLabel(t, r){ return `${routeName(t, r)} · ${ROUTE_TYPES[r.type].label}`; }
+/* where a new stop for route r goes: after its last stop, or (empty route) after the routes before it */
+function routeInsertIndex(t, rid){
+  let idx = -1; t.route.forEach((s, i) => { if (s.r === rid) idx = i; });
+  if (idx >= 0) return idx + 1;
+  const ri = t.routes.findIndex(r => r.id === rid); let pos = 0;
+  t.route.forEach((s, i) => { if (t.routes.findIndex(r => r.id === s.r) < ri) pos = i + 1; });
+  return pos;
+}
+function insertStop(t, pinId){ const rid = t.activeRouteId; const at = routeInsertIndex(t, rid); t.route.splice(at, 0, {sid: uid(), pinId, overnight: false, nights: 1, r: rid}); return at; }
+function typeChoicesHtml(cur){
+  const desc = {drive: 'Roads, with driving times.', hike: 'Footpaths and trails, with walking times. Drawn as a dotted line.', tour: 'A tour company drives you. Follows roads; drawn as a double line.'};
+  return `<div class="fmt-choices">${MODES.map(m => `<button class="fmt${m === cur ? ' on' : ''}" data-v="${m}"><i class="fa-solid fa-${ROUTE_TYPES[m].icon}" style="color:var(--text)"></i><span><b>${ROUTE_TYPES[m].label} ${routeSwatch(m)}</b><small>${desc[m]}</small></span></button>`).join('')}</div>`;
+}
+async function addRouteFlow(){
+  const t = trip(); const prev = t.routes[t.routes.length - 1]; const prevHas = t.route.some(s => s.r === prev.id);
+  let joined = true;
+  const type = await modal({title: 'Add another route', html: `<p>What kind of route is next? It comes after ${esc(routeLabel(t, prev))}.</p>${typeChoicesHtml(null)}
+    ${prevHas ? `<label class="check-row" style="display:flex;gap:10px;align-items:flex-start;margin-top:14px;color:var(--text);cursor:pointer"><input type="checkbox" id="rtJoined" checked style="width:22px;height:22px;margin-top:2px;accent-color:var(--route)"><span>Start where ${esc(routeName(t, prev))} ends<br><small style="color:var(--muted)">Uncheck if you’ll get to the start some other way, like a train or a flight.</small></span></label>` : ''}`,
+    onOpen: (back, close) => back.querySelectorAll('.fmt').forEach(b => b.onclick = () => { const c = back.querySelector('#rtJoined'); joined = c ? c.checked : true; close(b.dataset.v); }), buttons: [{label: 'Cancel', value: null}]});
+  if (!type) return;
+  const rid = uid();
+  change('Add route', t => { t.routes.push({id: rid, type, joined, name: ''}); t.activeRouteId = rid; });
+  toast(`${routeLabel(trip(), routeById(trip(), rid))} added. ${TAP} pins on the map to add its stops.`, {ms: 6000});
+}
+function routeMenu(anchor, rid){
+  const t = trip(); const r = routeById(t, rid); const ri = t.routes.indexOf(r); const count = t.route.filter(s => s.r === rid).length;
+  const items = [{header: 'Kind of route'}, ...MODES.map(m => ({icon: (m === r.type ? 'check' : ROUTE_TYPES[m].icon), label: ROUTE_TYPES[m].label, run: () => { if (m !== r.type) change('Change route type', t => { routeById(t, rid).type = m; }); }})), '-',
+    {icon: 'pen', label: 'Rename route', run: async () => { const n = await askText('Rename route', 'Route name (for example “Coast to Coast”)', r.name || ''); if (n !== null) change('Rename route', t => { routeById(t, rid).name = (n || '').trim(); }); }}];
+  if (ri > 0) items.push({icon: r.joined ? 'link-slash' : 'link', label: r.joined ? `Starts somewhere else (not where ${routeName(t, t.routes[ri - 1])} ends)` : `Start where ${routeName(t, t.routes[ri - 1])} ends`, run: () => change('Route start', t => { const x = routeById(t, rid); x.joined = !x.joined; })});
+  if (t.routes.length > 1) items.push('-', {icon: 'trash-can', cls: 'danger', label: count ? `Delete this route and its ${count} stop${count === 1 ? '' : 's'}` : 'Delete this route', run: async () => {
+    if (count && !await askConfirm('Delete this route?', `${esc(routeLabel(t, r))} and its <b>${count} stop${count === 1 ? '' : 's'}</b> will be removed from the trip. <b>Your pins stay on the map.</b>`, 'Delete route', true)) return;
+    change('Delete route', t => { t.route = t.route.filter(s => s.r !== rid); t.routes = t.routes.filter(x => x.id !== rid); if (t.activeRouteId === rid) t.activeRouteId = t.routes[t.routes.length - 1].id; });
+    undoToast('Route deleted'); }});
+  showMenu(anchor, items);
+}
+/* the stops of the route new stops go into: [first, last] indexes into t.route */
+function activeSection(t){ const idx = []; t.route.forEach((s, i) => { if (s.r === t.activeRouteId) idx.push(i); }); return idx; }
+
 /* ---------- route editing ---------- */
 function addToRoute(pinId, again){
   const t = trip(); const p = pinById(pinId); if (!p) return;
@@ -1303,8 +1383,8 @@ function addToRoute(pinId, again){
     toast(`“${p.name}” is already stop #${nums.join(', #')}.`, {action: 'Add again', onAction: () => addToRoute(pinId, true)});
     return;
   }
-  change('Add stop', t => t.route.push({sid: uid(), pinId, overnight: false}));
-  toast(`Stop #${trip().route.length}: ${p.name}`, {action: 'Undo', onAction: undo});
+  let at = 0; change('Add stop', t => { at = insertStop(t, pinId); });
+  const t2 = trip(); toast(`Stop #${at + 1}${t2.routes.length > 1 ? ` (${routeName(t2, routeById(t2, t2.activeRouteId))})` : ''}: ${p.name}`, {action: 'Undo', onAction: undo});
 }
 function removeStop(sid){ change('Remove stop', t => { t.route = t.route.filter(s => s.sid !== sid); }); undoToast('Stop removed from the route'); }
 function addAllPins(){
@@ -1312,10 +1392,11 @@ function addAllPins(){
   const inRoute = new Set(t.route.map(s => s.pinId));
   let rest = t.pins.filter(p => vis.has(p.layerId) && !inRoute.has(p.id));
   if (!rest.length) { toast('Every pin is already in the route.'); return; }
-  const order = []; let cur = t.route.length ? pinById(t.route[t.route.length - 1].pinId) : rest[0];
-  if (!t.route.length) { order.push(rest[0]); rest = rest.slice(1); }
+  const at = routeInsertIndex(t, t.activeRouteId);
+  const order = []; let cur = at > 0 ? pinById(t.route[at - 1].pinId) : rest[0];
+  if (at === 0) { order.push(rest[0]); rest = rest.slice(1); }
   while (rest.length) { let bi = 0, bd = Infinity; rest.forEach((p, i) => { const d = haversine(cur, p); if (d < bd) { bd = d; bi = i; } }); cur = rest[bi]; order.push(cur); rest.splice(bi, 1); }
-  change('Add all pins', t => order.forEach(p => t.route.push({sid: uid(), pinId: p.id, overnight: false})));
+  change('Add all pins', t => { const rid = t.activeRouteId; t.route.splice(routeInsertIndex(t, rid), 0, ...order.map(p => ({sid: uid(), pinId: p.id, overnight: false, nights: 1, r: rid}))); });
   fitRoute();
   undoToast(`Added ${order.length} stop${order.length === 1 ? '' : 's'}. Try “Suggest order” next.`);
 }
@@ -1341,7 +1422,8 @@ async function startRouteBuild(){
   if (pins.length < 2) { toast('You need at least 2 pins showing on the map.'); return; }
   if (t.route.length) {
     const inRoute = new Set(t.route.map(s => s.pinId)); const left = pins.filter(p => !inRoute.has(p.id)).length;
-    const v = await modal({title: 'You already have a route', html: `<p>Do you want to build a new route from all ${pins.length} pins, or keep your route and add the ${left} pin${left === 1 ? '' : 's'} that aren’t in it yet?</p>`,
+    const many = t.routes.length > 1; const ar = routeById(t, t.activeRouteId);
+    const v = await modal({title: 'You already have a route', html: `<p>Do you want to build a new route from all ${pins.length} pins, or keep your route and add the ${left} pin${left === 1 ? '' : 's'} that aren’t in it yet${many ? ` to the end of ${esc(routeLabel(t, ar))}` : ''}?</p>${many ? `<p><b>Start over</b> replaces all ${t.routes.length} routes with one new route.</p>` : ''}`,
       buttons: [{label: 'Cancel', value: null}, {label: 'Add to the end', kind: 'ghost', value: 'add'}, {label: '<i class="fa-solid fa-rotate"></i> Start over', kind: 'green', value: 'new'}]});
     if (v === 'add') { if (!left) toast('Every pin is already in the route.'); else addAllPins(); return; }
     if (v !== 'new') return;
@@ -1364,7 +1446,7 @@ function buildRoute(end){
   else { const e = pinById(end); pts = [start, ...middle, e]; fixed = true; }
   const order = shortestOrder(pts, fixed).map(i => pts[i]);
   ui.rp = null; ui.mode = null; document.body.classList.remove('routepicking');
-  change('Create route', t => { t.route = order.map(p => ({sid: uid(), pinId: p.id, overnight: false, nights: 1})); });
+  change('Create route', t => { t.routes = [t.routes[0]]; t.activeRouteId = t.routes[0].id; t.route = order.map(p => ({sid: uid(), pinId: p.id, overnight: false, nights: 1, r: t.routes[0].id})); });
   fitRoute();
   undoToast(`Route made with ${order.length} stops${end === 'round' ? ', ending back at the start' : ''}. Drag stops to fine-tune it.`);
 }
@@ -1380,9 +1462,9 @@ function routePickHtml(){
     <div class="btn-row" style="margin-top:10px"><button class="btn ghost" style="flex:1" data-act="rp-back"><i class="fa-solid fa-arrow-left"></i>Back</button><button class="btn ghost" style="flex:1" data-act="rp-cancel">Cancel</button></div></div>`;
 }
 function suggestOrder(){
-  const t = trip(); const n = t.route.length;
-  if (n < 4) { toast('Add at least 4 stops first. The first and last stops stay where they are.'); return; }
-  const pts = t.route.map(s => pinById(s.pinId));
+  const t = trip(); const sec = t.routes.length > 1 ? activeSection(t) : t.route.map((_, i) => i); const n = sec.length; const off = sec[0] || 0;
+  if (n < 4) { toast(t.routes.length > 1 ? 'This route needs at least 4 stops. Its first and last stops stay where they are.' : 'Add at least 4 stops first. The first and last stops stay where they are.'); return; }
+  const pts = sec.map(i => pinById(t.route[i].pinId));
   const D = []; for (let i = 0; i < n; i++) { D.push(new Float64Array(n)); for (let j = 0; j < n; j++) D[i][j] = i === j ? 0 : haversine(pts[i], pts[j]); }
   const len = path => { let s = 0; for (let i = 0; i < path.length - 1; i++) s += D[path[i]][path[i + 1]]; return s; };
   const orig = [...Array(n).keys()]; const oldLen = len(orig);
@@ -1394,11 +1476,16 @@ function suggestOrder(){
   const a = twoOpt(path), b = twoOpt([...orig]);
   const best = len(a) <= len(b) ? a : b; const newLen = len(best);
   if (newLen >= oldLen - 1000) { toast('Your order is already about as short as it gets.'); return; }
-  change('Suggest order', t => { const r = t.route; t.route = best.map(i => r[i]); });
+  change('Suggest order', t => { const part = t.route.slice(off, off + n); t.route.splice(off, n, ...best.map(i => part[i])); });
   undoToast(`New order saves about ${milesWord(oldLen - newLen)} (straight-line estimate).`);
 }
-function reverseRoute(){ if (trip().route.length < 2) return; change('Reverse route', t => t.route.reverse()); undoToast('Route reversed'); }
-async function clearRoute(){ if (!trip().route.length) return; if (!await askConfirm('Clear the route?', 'This removes every stop from the route. <b>Your pins stay on the map.</b>', 'Clear route', true)) return; change('Clear route', t => t.route = []); undoToast('Route cleared'); }
+function reverseRoute(){
+  const t = trip(); if (t.route.length < 2) return;
+  if (t.routes.length > 1) { const sec = activeSection(t); if (sec.length < 2) { toast('This route needs at least 2 stops to reverse.'); return; }
+    change('Reverse route', t => { const part = t.route.slice(sec[0], sec[0] + sec.length).reverse(); t.route.splice(sec[0], sec.length, ...part); }); undoToast(`${routeName(t, routeById(t, t.activeRouteId))} reversed`); return; }
+  change('Reverse route', t => t.route.reverse()); undoToast('Route reversed');
+}
+async function clearRoute(){ if (!trip().route.length) return; if (!await askConfirm('Clear the route?', trip().routes.length > 1 ? `This removes all ${trip().routes.length} routes and their stops. <b>Your pins stay on the map.</b>` : 'This removes every stop from the route. <b>Your pins stay on the map.</b>', 'Clear route', true)) return; change('Clear route', t => { t.route = []; t.routes = [t.routes[0]]; t.activeRouteId = t.routes[0].id; }); undoToast('Route cleared'); }
 
 /* ---------- days ---------- */
 function computeDays(t, stats){
@@ -1409,10 +1496,10 @@ function computeDays(t, stats){
   const days = [];
   segs.forEach((idx, si) => {
     let d = 0, s = 0, missing = 0, ferry = null;
-    for (let j = idx[0]; j < idx[idx.length - 1]; j++) { const l = stats.legs[j]; if (l && l.info && l.info.status === 'ok') { d += l.info.d; s += l.info.t; if (l.info.ferry) { ferry ||= {d: 0, t: 0}; ferry.d += l.info.ferry.d; ferry.t += l.info.ferry.t; } } else missing++; }
-    days.push({kind: 'drive', seg: si, idx, d, s, missing, ferry});
+    for (let j = idx[0]; j < idx[idx.length - 1]; j++) { const l = stats.legs[j]; if (l && l.mode === 'gap') continue; if (l && l.info && l.info.status === 'ok') { d += l.info.d; s += l.info.t; if (l.info.ferry) { ferry ||= {d: 0, t: 0}; ferry.d += l.info.ferry.d; ferry.t += l.info.ferry.t; } } else missing++; }
+    days.push({kind: 'drive', seg: si, idx, d, s, missing, ferry, by: modeTotals(stats.legs, idx[0], idx[idx.length - 1])});
     const last = idx[idx.length - 1];
-    if (si < segs.length - 1) { const nights = t.route[last].nights || 1; for (let k = 2; k <= nights; k++) days.push({kind: 'layover', seg: si, idx: [last], night: k, nights, d: 0, s: 0, missing: 0, ferry: null}); }
+    if (si < segs.length - 1) { const nights = t.route[last].nights || 1; for (let k = 2; k <= nights; k++) days.push({kind: 'layover', seg: si, idx: [last], night: k, nights, d: 0, s: 0, missing: 0, ferry: null, by: {}}); }
   });
   let base = null; if (t.startDate) { const dt = new Date(t.startDate + 'T12:00:00'); if (!isNaN(dt)) base = dt; }
   days.forEach((d, k) => { d.n = k + 1; d.date = null; if (base) { const x = new Date(base); x.setDate(x.getDate() + k); d.date = x; } });
@@ -1427,145 +1514,6 @@ function lodgingTotals(t){
 }
 function stopTitle(t, i){ const p = pinById(t.route[i].pinId); return p ? p.name : '?'; }
 function stopTown(t, i){ const p = pinById(t.route[i].pinId); if (!p) return '?'; return pinPlace(p) || p.name; }
-function sugStopEdited(p){ return !!(p && (p.stay || p.notes.trim() || p.links.length || (p.fromSug && p.name !== p.fromSug))); }
-/* Before re-splitting: find stops that were added from ? suggestions but aren't needed at the new limit. */
-function findUnneededStops(t, st){
-  const max = t.maxDayHours * 3600; const out = []; const n = t.route.length;
-  let a = 0;
-  for (let b = 1; b < n; b++) {
-    if (t.route[b].sugFrac != null && b < n - 1) continue;
-    const between = []; for (let i = a + 1; i < b; i++) between.push(i);
-    if (between.length) {
-      let T = 0, ok = true; const at = [];
-      for (let i = a; i < b; i++) { const x = st.legs[i] && st.legs[i].info; if (!x || x.status !== 'ok') { ok = false; break; } T += x.t; if (i + 1 < b) at.push(T); }
-      if (ok) {
-        const k = T > max * 1.1 ? Math.ceil(T / max) - 1 : 0;
-        if (between.length > k) {
-          const keep = new Set(); const fr = at.map(x => x / T);
-          for (let j = 1; j <= k; j++) { let best = -1; fr.forEach((f, q) => { if (!keep.has(q) && (best < 0 || Math.abs(f - j / (k + 1)) < Math.abs(fr[best] - j / (k + 1)))) best = q; }); if (best >= 0) keep.add(best); }
-          between.forEach((i, q) => { if (!keep.has(q)) { const p = pinById(t.route[i].pinId); out.push({sid: t.route[i].sid, pinId: p.id, name: p.name, edited: sugStopEdited(p), from: pinById(t.route[a].pinId)?.name, to: pinById(t.route[b].pinId)?.name}); } });
-        }
-      }
-    }
-    a = b;
-  }
-  return out;
-}
-function suggestDays(){
-  const t = trip(); const st = routeStats(t);
-  if (t.route.length < 2) { toast('Make a route with at least 2 stops first (Step 2).'); return; }
-  if (st.pending) { toast('Still loading some driving times. Try again in a few seconds.'); return; }
-  if (ui.sugBusy) return;
-  ui.maxChanged = false;
-  const extra = findUnneededStops(t, st);
-  if (extra.length) { ui.review = {trip: t.id, max: t.maxDayHours, items: extra}; renderPanel(); $('#panelBody').scrollTop = 0; return; }
-  runSmartSplit();
-}
-function finishReview(){
-  ui.review = null; renderPanel();
-  let tries = 0; const go = () => { const st = routeStats(trip()); if (st.pending && tries++ < 30) { setTimeout(go, 700); return; } runSmartSplit(); };   // wait for the drives that changed
-  setTimeout(go, 100);
-}
-function reviewDecide(sid, keep){
-  const r = ui.review; if (!r) return; const it = r.items.find(x => x.sid === sid); if (!it) return;
-  r.items = r.items.filter(x => x !== it);
-  if (!keep) removeSugStops([it]);
-  if (!r.items.length) finishReview(); else renderPanel();
-}
-function removeSugStops(items){
-  change(items.length > 1 ? 'Remove extra stops' : 'Remove extra stop', t => {
-    const sids = new Set(items.map(x => x.sid)); const dropPins = new Set(items.filter(x => !x.edited).map(x => x.pinId));
-    t.route = t.route.filter(s => !sids.has(s.sid));
-    t.pins = t.pins.filter(p => !dropPins.has(p.id) || t.route.some(s => s.pinId === p.id));
-  });
-  undoToast(items.length > 1 ? `Removed ${items.length} stops` : `Removed ${items[0].name}`);
-}
-function reviewHtml(){
-  const r = ui.review; if (!r || r.trip !== trip().id) return '';
-  return `<div class="review-card"><div class="sug-title" style="color:#fbbf24"><i class="fa-solid fa-scale-balanced"></i>Stops you may not need now</div>
-    <p class="hint" style="margin:6px 0 8px">With your new limit of <b style="color:var(--text)">${r.max} hours</b>, these overnight stops added from earlier suggestions may no longer be needed. Keep or remove each one.</p>
-    ${r.items.map(it => `<div class="sug-row"><span class="q" style="border-style:solid"><i class="fa-solid fa-bed" style="font-size:12px"></i></span><span class="txt" data-act="focus-pin" data-id="${it.pinId}"><b>${esc(it.name)}</b><small>between ${esc(it.from || '?')} and ${esc(it.to || '?')}${it.edited ? ' · <span style="color:#d8b4fe">has your details</span>' : ''}</small></span><button class="btn sm ghost" data-act="rev-keep" data-sid="${it.sid}">Keep</button><button class="btn sm red" data-act="rev-remove" data-sid="${it.sid}">Remove</button></div>`).join('')}
-    ${r.items.length > 1 ? `<button class="btn red" style="width:100%;margin-top:8px" data-act="rev-remove-all"><i class="fa-solid fa-trash-can"></i>Remove all ${r.items.length}</button>` : ''}
-    <button class="btn amber" style="width:100%;margin-top:8px" data-act="rev-done">Done, plan the segments<i class="fa-solid fa-arrow-right"></i></button>
-    <p class="hint" style="font-size:13px;margin-bottom:0">Stops with your hotel details, notes or a new name are only taken out of the route. Their pins stay on the map.</p></div>`;
-}
-function runSmartSplit(){
-  const t = trip(); const st = routeStats(t);
-  if (t.route.length < 2 || ui.sugBusy) return;
-  if (st.pending) { toast('Still loading some driving times. Try again in a few seconds.'); return; }
-  const max = t.maxDayHours * 3600; const nights = new Set(); const longLegs = []; let acc = 0;
-  st.legs.forEach((l, i) => {
-    if (!l.info || l.info.status !== 'ok') { acc = 0; return; }
-    const tt = l.info.t;
-    if (acc > 0 && acc + tt > max) { nights.add(i); acc = 0; }
-    if (tt > max * 1.1) { const k = Math.ceil(tt / max) - 1; longLegs.push({i, k}); acc = tt / (k + 1); }
-    else acc += tt;
-  });
-  change('Smart Segments', t => t.route.forEach((s, i) => { s.overnight = nights.has(i); }));
-  ui.sugs = ui.sugs.filter(x => x.trip !== t.id);
-  if (!longLegs.length) { drawSuggestions(); undoToast(`Smart Segments made ${nights.size + 1} segment${nights.size ? 's' : ''}, each up to about ${t.maxDayHours} hours of driving.`); return; }
-  findSuggestions(t, st, longLegs);
-}
-async function findSuggestions(t, st, longLegs){
-  ui.sugBusy = true; renderPanelSoft();
-  let count = 0;
-  try {
-    for (const {i, k} of longLegs) {
-      const l = st.legs[i];
-      for (let j = 1; j <= k; j++) {
-        const frac = j / (k + 1);
-        const pt = pointAlong(l.info, frac) || {lat: l.a.lat + (l.b.lat - l.a.lat) * frac, lng: l.a.lng + (l.b.lng - l.a.lng) * frac};
-        const town = await findTown(pt);
-        if (trip().id !== t.id) return;
-        ui.sugs.push({id: uid(), trip: t.id, from: t.route[i].sid, to: t.route[i + 1].sid, frac, lat: town.lat, lng: town.lng, name: town.name, place: town.place, hours: l.info.t * frac, fromName: l.a.name});
-        count++; drawSuggestions(); renderPanelSoft();
-      }
-    }
-  } finally { ui.sugBusy = false; renderPanelSoft(); drawSuggestions(); }
-  if (count) toast(`Some drives are longer than ${t.maxDayHours} hours. Look for the ? pins: they’re suggested places to stop for the night.`, {ms: 8000});
-}
-function pointAlong(info, frac){
-  const c = []; (info.segs || []).forEach(s => c.push(...s.c)); if (c.length < 2) return null;
-  const cum = [0]; for (let i = 1; i < c.length; i++) cum.push(cum[i - 1] + haversine({lat: c[i - 1][0], lng: c[i - 1][1]}, {lat: c[i][0], lng: c[i][1]}));
-  const target = cum[cum.length - 1] * frac; let i = cum.findIndex(x => x >= target); if (i <= 0) i = 1;
-  const r = (target - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1);
-  return {lat: c[i - 1][0] + (c[i][0] - c[i - 1][0]) * r, lng: c[i - 1][1] + (c[i][1] - c[i - 1][1]) * r};
-}
-async function findTown(pt){
-  for (const radius of [30, 80]) {
-    try {
-      const r = await fetchJSON(`${PHOTON}/reverse?lat=${pt.lat.toFixed(5)}&lon=${pt.lng.toFixed(5)}&osm_tag=place:city&osm_tag=place:town&radius=${radius}&limit=3&lang=en`, 10000);
-      const f = r.json && r.json.features && r.json.features[0];
-      if (f) { const pr = f.properties; const place = {city: pr.name || '', state: pr.state || '', country: pr.country || '', cc: (pr.countrycode || '').toUpperCase()}; return {lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], name: placeShort(place) || pr.name || 'Overnight stop', place}; }
-    } catch (e) {}
-    await sleep(700);
-  }
-  try {
-    const r = await fetchJSON(`${NOMINATIM}/reverse?format=jsonv2&lat=${pt.lat}&lon=${pt.lng}&zoom=10&addressdetails=1&accept-language=en`, 10000);
-    const a = (r.json && r.json.address) || {};
-    const place = {city: a.city || a.town || a.village || a.hamlet || a.county || '', state: a.state || '', country: a.country || '', cc: (a.country_code || '').toUpperCase()};
-    return {lat: pt.lat, lng: pt.lng, name: placeShort(place) ? 'Near ' + placeShort(place) : 'Overnight stop', place};
-  } catch (e) {}
-  return {lat: pt.lat, lng: pt.lng, name: 'Overnight stop', place: null};
-}
-function sugValid(t, s){ const a = t.route.findIndex(x => x.sid === s.from), b = t.route.findIndex(x => x.sid === s.to); if (a < 0 || b <= a) return false; for (let i = a + 1; i < b; i++) if (t.route[i].sugFrac == null) return false; return true; }
-function liveSugs(){ const t = trip(); ui.sugs = ui.sugs.filter(s => s.trip === t.id && sugValid(t, s)); return ui.sugs; }
-function addSuggestions(ids){
-  const t0 = trip(); const list = liveSugs().filter(s => ids.includes(s.id)).sort((a, b) => a.frac - b.frac); if (!list.length) return;
-  change(list.length > 1 ? 'Add overnight stops' : 'Add overnight stop', t => {
-    for (const s of list) {
-      const pid = uid();
-      t.pins.push({id: pid, name: s.name, lat: +s.lat.toFixed(6), lng: +s.lng.toFixed(6), color: '#fb8c00', icon: 'bed', notes: '', links: [], layerId: t.activeLayerId, place: s.place, stay: null, fromSug: s.name, sugMax: t.maxDayHours});
-      const a = t.route.findIndex(x => x.sid === s.from), b = t.route.findIndex(x => x.sid === s.to); if (a < 0 || b < 0) continue;
-      let pos = b; for (let i = a + 1; i < b; i++) if (t.route[i].sugFrac > s.frac) { pos = i; break; }
-      t.route.splice(pos, 0, {sid: uid(), pinId: pid, overnight: true, nights: 1, sugFrac: s.frac});
-    }
-    const l = t.layers.find(x => x.id === t.activeLayerId); if (l) l.visible = true;
-  });
-  ui.sugs = ui.sugs.filter(s => !ids.includes(s.id)); map.closePopup(); render();
-  undoToast(list.length > 1 ? `Added ${list.length} overnight stops` : `Added ${list[0].name} as an overnight stop`);
-}
-function dismissSug(id){ ui.sugs = ui.sugs.filter(s => s.id !== id); map.closePopup(); drawSuggestions(); renderPanelSoft(); }
 
 /* =========================================================
    PANEL RENDERING
@@ -1684,17 +1632,23 @@ function legHtml(l, t){
   // the drive that arrives at a stop; shown at the top of that stop's card
   if (!l) return '';
   const x = l.info; const from = l.a ? `<span class="from">from ${esc(l.a.name)}</span>` : '';
-  if (!x || x.status === 'pending') return `<div class="leg in pending"><span class="loading-pill"><i class="fa-solid fa-circle-notch fa-spin"></i>Finding the drive ${from}…</span></div>`;
+  const T = ROUTE_TYPES[l.mode] || ROUTE_TYPES.drive;
+  if (l.mode === 'gap') return `<div class="leg in gap" data-act="zoom-leg" data-i="${l.i}" title="Show on the map"><span class="arrow"><i class="fa-solid fa-shuffle"></i></span><span>New route starts here. You’ll get here on your own ${from} (about ${miles(x.d)} away, not counted).</span></div>`;
+  if (!x || x.status === 'pending') return `<div class="leg in pending"><span class="loading-pill"><i class="fa-solid fa-circle-notch fa-spin"></i>Finding the ${T.noun} ${from}…</span></div>`;
   if (x.status === 'error') return `<div class="leg in"><span class="pill err"><i class="fa-solid fa-triangle-exclamation"></i>${esc(x.err)}</span>${x.kind === 'network' ? '<button class="retry" data-act="retry">Try again</button>' : ''}</div>`;
   if (x.d === 0) return `<div class="leg in" data-act="zoom-leg" data-i="${l.i}"><span class="arrow"><i class="fa-solid fa-arrow-down"></i></span>Same place as the stop before</div>`;
   const wp = l.vias && l.vias.length ? `<span class="pill wp"><span class="wpb" style="width:16px;height:16px;font-size:9px;border-width:1px">W</span>via ${l.vias.length} waypoint${l.vias.length === 1 ? '' : 's'}<button data-act="clear-vias" data-sid="${l.sid}" title="Remove these waypoints" aria-label="Remove these waypoints"><i class="fa-solid fa-xmark"></i></button></span>` : '';
-  return `<div class="leg in" data-act="zoom-leg" data-i="${l.i}" title="Show this drive on the map"><span class="arrow"><i class="fa-solid fa-car-side"></i></span><span><b>${miles(x.d)}</b> · ${hrs(x.t)} ${from}</span>${x.ferry ? `<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry ${miles(x.ferry.d)} · ${hrs(x.ferry.t)}</span>` : ''}${wp}</div>`;
+  return `<div class="leg in" data-act="zoom-leg" data-i="${l.i}" title="Show this ${T.noun} on the map"><span class="arrow"><i class="fa-solid fa-${T.icon}"></i></span><span><b>${miles(x.d)}</b> · ${hrs(x.t)} ${l.mode === 'drive' ? '' : `<b style="font-weight:400;color:var(--muted)">${T.short}</b> `}${from}</span>${x.ferry ? `<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry ${miles(x.ferry.d)} · ${hrs(x.ferry.t)}</span>` : ''}${wp}</div>`;
 }
 function totalsHtml(st, n, extra = ''){
   let status = '';
-  if (st.pending) status = `<div class="sub"><span class="loading-pill"><i class="fa-solid fa-circle-notch fa-spin"></i>Getting driving directions… ${st.legs.length - st.pending} of ${st.legs.length} drives done</span></div>`;
-  else if (st.errors) status = `<div class="sub" style="color:#fca5a5"><i class="fa-solid fa-triangle-exclamation"></i> ${st.errors} drive${st.errors === 1 ? '' : 's'} couldn’t be found and ${st.errors === 1 ? 'is' : 'are'} not counted.</div>`;
-  return `<div class="totals${extra}"><div class="big-num">${miles(st.d)} · ${hrs(st.s)}</div><div class="sub">${n} stops · total driving${st.ferries ? ` · includes ${st.ferries} ferry crossing${st.ferries === 1 ? '' : 's'}` : ''}</div>${status}</div>`;
+  if (st.pending) status = `<div class="sub"><span class="loading-pill"><i class="fa-solid fa-circle-notch fa-spin"></i>Getting directions… ${st.legs.length - st.pending} of ${st.legs.length} done</span></div>`;
+  else if (st.errors) status = `<div class="sub" style="color:#fca5a5"><i class="fa-solid fa-triangle-exclamation"></i> ${st.errors} leg${st.errors === 1 ? '' : 's'} couldn’t be found and ${st.errors === 1 ? 'is' : 'are'} not counted.</div>`;
+  const used = MODES.filter(m => st.by[m] && st.by[m].d > 0);
+  const ferr = st.ferries ? ` · includes ${st.ferries} ferry crossing${st.ferries === 1 ? '' : 's'}` : '';
+  if (used.length <= 1 && (used[0] || 'drive') === 'drive') return `<div class="totals${extra}"><div class="big-num">${miles(st.d)} · ${hrs(st.s)}</div><div class="sub">${n} stops · <span class="seg-count"></span>total driving${ferr}</div>${status}</div>`;
+  const one = used.length === 1 ? used[0] : null;
+  return `<div class="totals${extra}"><div class="big-num">${one ? `${miles(st.d)} · ${hrs(st.s)}` : miles(st.d)}</div><div class="sub">${n} stops · <span class="seg-count"></span>${one ? 'total ' + ROUTE_TYPES[one].short : 'in total'}${ferr}</div>${one ? '' : `<div class="mode-list">${used.map(m => `<span><i class="fa-solid fa-${ROUTE_TYPES[m].icon}"></i>${miles(st.by[m].d)} · ${hrs(st.by[m].s)} ${ROUTE_TYPES[m].short}</span>`).join('')}</div>`}${status}</div>`;
 }
 function routeView(){
   const t = trip(); const n = t.route.length;
@@ -1703,17 +1657,24 @@ function routeView(){
   if (ui.mode === 'routepick' && ui.rp) return routePickHtml();
   let html = '';
   if (n) html += totalsHtml(st, n);
-  html += `<p class="hint">${n ? 'Drag your pins (<i class="fa-solid fa-grip-lines"></i>) to create your route.' : `<b style="color:var(--text)">Build your route.</b> ${TAP} your pins in the order you want to visit them. Or, choose an option from below.`}</p>`;
+  html += `<p class="hint">${n ? `Drag your pins (<i class="fa-solid fa-grip-lines"></i>) to create your route.${t.routes.length > 1 ? ` New stops go into the highlighted route; ${TAP.toLowerCase()} a route’s name to switch.` : ''}` : `<b style="color:var(--text)">Build your route.</b> ${TAP} your pins in the order you want to visit them. Or, choose an option from below.`}</p>`;
   html += `<div class="btn-grid">
     <button class="btn sm ghost" data-act="add-all" ${t.pins.length >= 2 ? '' : 'disabled'}><i class="fa-solid fa-circle-plus"></i>Create route from all pins</button>
     <button class="btn sm ghost" data-act="suggest" ${n >= 4 ? '' : 'disabled'} title="Reorders the stops between the first and last to make the drive shorter"><i class="fa-solid fa-wand-magic-sparkles"></i>Suggest order</button>
     <button class="btn sm ghost" data-act="reverse" ${n >= 2 ? '' : 'disabled'}><i class="fa-solid fa-arrow-right-arrow-left"></i>Reverse</button>
     <button class="btn sm ghost" data-act="clear-route" ${n ? '' : 'disabled'}><i class="fa-solid fa-trash-can"></i>Clear route</button></div>
     <button class="btn ${ui.mode === 'waypoint' ? 'yellow' : 'ghost'}" style="width:100%;margin-top:8px" data-act="wp-mode" ${n >= 2 ? '' : 'disabled'} title="Make the route pass through a spot, like a scenic road"><span class="wpb">W</span>${ui.mode === 'waypoint' ? `Done adding waypoints` : 'Add waypoint (scenic route)'}</button>`;
-  if (!n) return html + `<div class="empty"><i class="fa-solid fa-hand-pointer big"></i>No stops yet.</div>`;
+  if (!n && t.routes.length === 1) return html + `<div class="empty"><i class="fa-solid fa-hand-pointer big"></i>No stops yet.</div>`;
   html += `<ol class="stops" id="stopList">`;
+  const many = t.routes.length > 1;
+  const head = r => { const cnt = t.route.filter(x => x.r === r.id).length; const act = r.id === t.activeRouteId;
+    return `<li class="route-head${act ? ' active' : ''}" data-rid="${r.id}"><button class="rh-name" data-act="set-active-route" data-id="${r.id}" title="New stops go into the highlighted route"><span class="rh-ico"><i class="fa-solid fa-${ROUTE_TYPES[r.type].icon}"></i></span><span style="min-width:0"><b>${esc(routeLabel(t, r))}${routeSwatch(r.type)}</b><small>${cnt} stop${cnt === 1 ? '' : 's'}${act && many ? ' · new stops go here' : ''}</small></span></button><button class="mini-btn" data-act="route-menu" data-id="${r.id}" title="Change type, rename or delete"><i class="fa-solid fa-ellipsis-vertical"></i></button></li>`; };
+  const emptyRow = r => `<li class="route-empty" data-rid="${r.id}">No stops yet. ${TAP} pins on the map to add them to this route.</li>`;
+  let shownR = new Set();
+  const headsUpTo = ri => { let h = ''; t.routes.forEach((r, k) => { if (k <= ri && !shownR.has(r.id)) { shownR.add(r.id); h += head(r); if (!t.route.some(x => x.r === r.id)) h += emptyRow(r); } }); return h; };
   t.route.forEach((s, i) => {
     const p = pinById(s.pinId);
+    html += headsUpTo(t.routes.findIndex(r => r.id === s.r));
     html += `<li class="stop" data-sid="${s.sid}">${i > 0 ? legHtml(st.legs[i - 1], t) : ''}<div class="stop-main">
       <button class="drag" aria-label="Drag to reorder"><i class="fa-solid fa-grip-lines"></i></button>
       <span class="snum">${i + 1}</span>
@@ -1722,22 +1683,25 @@ function routeView(){
       <button class="mini-btn" data-act="remove-stop" data-sid="${s.sid}" title="Remove from route (pin stays on map)"><i class="fa-solid fa-xmark"></i></button>
     </div></li>`;
   });
+  html += headsUpTo(t.routes.length - 1);
   html += `</ol>`;
+  html += `<button class="btn ghost" style="width:100%;margin-top:6px" data-act="add-route"><i class="fa-solid fa-plus"></i>Add another route (driving, hiking or group tour)</button>`;
   if (n >= 2) html += `<button class="btn big amber" style="margin-top:16px" data-act="go" data-step="days">Next: Step 3, plan the segments<i class="fa-solid fa-arrow-right"></i></button>`;
-  html += `<p class="hint" style="font-size:13px">Drive times are estimates without traffic, stops or ferry wait times.</p>`;
+  html += `<p class="hint" style="font-size:13px">Drive times are estimates without traffic, stops or ferry wait times.${t.routes.some(r => r.type === 'hike') ? ' Hiking times assume about 3 mph on level paths, without breaks or hills.' : ''}</p>`;
   return html;
 }
 let sortable = null;
 function setupSortable(){
   if (sortable) { sortable.destroy(); sortable = null; }
   const el = $('#stopList'); if (!el || !window.Sortable) return;
-  sortable = Sortable.create(el, {handle: '.drag', animation: 150, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen', fallbackTolerance: 3,
+  sortable = Sortable.create(el, {handle: '.drag', draggable: '.stop', animation: 150, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen', fallbackTolerance: 3, forceFallback: true, fallbackOnBody: true, scroll: true, bubbleScroll: true,
     onStart: () => { ui.sorting = true; },
     onEnd: () => {
-      ui.sorting = false;
-      const order = [...el.children].map(li => li.dataset.sid);
-      const cur = trip().route.map(s => s.sid);
-      if (order.join() !== cur.join()) { change('Reorder stops', t => { const m = new Map(t.route.map(s => [s.sid, s])); t.route = order.map(id => m.get(id)).filter(Boolean); }); }
+      ui.sorting = false; releaseSortClick();
+      const t0 = trip(); let rid = t0.routes[0].id; const order = [];
+      for (const li of el.children) { if (li.dataset.rid) rid = li.dataset.rid; else if (li.dataset.sid) order.push([li.dataset.sid, rid]); }
+      const sig = a => a.map(([sid, r]) => sid + ':' + r).join();
+      if (sig(order) !== sig(t0.route.map(s => [s.sid, s.r]))) { change('Reorder stops', t => { const m = new Map(t.route.map(s => [s.sid, s])); t.route = order.map(([sid, r]) => { const x = m.get(sid); if (x) x.r = r; return x; }).filter(Boolean); }); }
       else if (ui.panelDirty) { ui.panelDirty = false; renderPanel(); }
     }});
 }
@@ -1746,14 +1710,15 @@ let segSortables = [];
 function killSegSortables(){ segSortables.forEach(x => x.destroy()); segSortables = []; }
 function setupSegSortable(){
   killSegSortables();
-  if (!window.Sortable || ui.review) return;
+  if (!window.Sortable) return;
   const lists = [...document.querySelectorAll('#panelBody .seg-list')];
   // every stop appears once as a normal row; a stop you slept at also appears (greyed) at the top of the next segment
   const finish = () => {
     ui.sorting = false; releaseSortClick();
-    const order = [...document.querySelectorAll('#panelBody .seg-list > li.stop:not(.woke)')].map(li => li.dataset.sid);
-    const cur = trip().route.map(s => s.sid);
-    if (order.length === cur.length && order.join() !== cur.join()) change('Reorder stops', t => { const m = new Map(t.route.map(s => [s.sid, s])); t.route = order.map(id => m.get(id)).filter(Boolean); });
+    const t0 = trip(); let rid = t0.routes[0].id; const order = [];
+    for (const li of document.querySelectorAll('#panelBody .seg-list > li')) { if (li.classList.contains('route-div')) rid = li.dataset.rid; else if (li.classList.contains('stop') && !li.classList.contains('woke')) order.push([li.dataset.sid, rid]); }
+    const sig = a => a.map(([sid, r]) => sid + ':' + r).join();
+    if (order.length === t0.route.length && sig(order) !== sig(t0.route.map(s => [s.sid, s.r]))) change('Reorder stops', t => { const m = new Map(t.route.map(s => [s.sid, s])); t.route = order.map(([sid, r]) => { const x = m.get(sid); if (x) x.r = r; return x; }).filter(Boolean); });
     else { ui.panelDirty = false; renderPanel(); }
   };
   lists.forEach(el => segSortables.push(Sortable.create(el, {group: 'segs', handle: '.drag', draggable: '.stop', animation: 150, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen', fallbackTolerance: 3,
@@ -1765,12 +1730,10 @@ function daysView(){
   const t = trip(); const n = t.route.length;
   if (n < 2) return `<div class="empty"><i class="fa-solid fa-calendar-days big"></i><b>Step 3: Plan the segments</b>First connect at least two pins into a route.</div><button class="btn big green" data-act="go" data-step="route"><i class="fa-solid fa-arrow-left"></i>Go to Step 2: Route</button>`;
   const st = routeStats(t); const days = computeDays(t, st);
-  let html = totalsHtml(st, n, ' days').replace('total driving', `${days.length} segment${days.length === 1 ? '' : 's'} · total driving`);
+  let html = totalsHtml(st, n, ' days').replace('<span class="seg-count"></span>', `${days.length} segment${days.length === 1 ? '' : 's'} · `);
   const lodging = lodgingTotals(t); if (lodging) html += `<p class="hint"><i class="fa-solid fa-bed" style="color:#c4b5fd"></i> Lodging: ${esc(lodging)}</p>`;
   html += `<label class="label">Trip start date (optional)</label><input class="input" type="date" id="startDate" value="${esc(t.startDate)}">`;
-  const smart = prefs.segMode === 'smart';
-  html += `<div class="seg-tabs" role="tablist"><button class="${smart ? '' : 'on'}" data-act="seg-mode" data-m="manual" role="tab" aria-selected="${!smart}"><i class="fa-solid fa-hand-pointer"></i>Create segments manually</button><button class="${smart ? 'on' : ''}" data-act="seg-mode" data-m="smart" role="tab" aria-selected="${smart}"><i class="fa-solid fa-wand-magic-sparkles"></i>Smart Segments</button></div>`;
-  if (!smart) {
+  {
     const nights = t.route.filter((s, i) => s.overnight && i > 0 && i < n - 1).length;
     const stays = t.route.filter((s, i) => s.overnight && i > 0 && i < n - 1 && pinById(s.pinId)?.stay).length;
     html += `<div class="guide"><ol>
@@ -1778,26 +1741,19 @@ function daysView(){
       <li class="${nights ? 'done' : ''}"><span class="n">${nights ? '<i class="fa-solid fa-check"></i>' : '2'}</span><span>On stops where you’ll sleep, press <b><i class="fa-solid fa-moon"></i> End segment</b>. Use <b>−</b> and <b>+</b> to stay more than one night.${nights ? ` You’ve ended ${nights} segment${nights === 1 ? '' : 's'}.` : ''}</span></li>
       <li class="${nights && stays === nights ? 'done' : ''}"><span class="n">${nights && stays === nights ? '<i class="fa-solid fa-check"></i>' : '3'}</span><span>Add accommodation details by pressing <b>Add Accommodation Details</b>.</span></li>
     </ol></div>`;
-  } else {
-    html += `<div class="guide"><p class="hint" style="margin:0 0 10px">Smart Segments plans the segments for you, so no segment has more driving than the limit you pick. If one drive is longer than that, it suggests towns along the way, shown on the map with a <b style="color:#fbbf24">?</b>. You can change anything afterward.</p>
-      <label class="label" style="margin-top:0">Most driving you want in one segment</label>
-      <div class="row-inline"><select class="input" id="maxHours" style="width:auto;flex:1">${[3,4,5,6,7,8,9,10,11,12].map(h => `<option value="${h}" ${h === t.maxDayHours ? 'selected' : ''}>${h} hours</option>`).join('')}</select>
-      <button class="btn amber" data-act="suggest-days" style="flex:1.3" ${ui.sugBusy ? 'disabled' : ''}><i class="fa-solid fa-wand-magic-sparkles"></i>Create Smart Segments</button></div>${ui.maxChanged ? '<p class="hint" style="margin:10px 0 0;color:#fbbf24"><i class="fa-solid fa-circle-info"></i> Press <b>Create Smart Segments</b> to update your stops for the new limit.</p>' : ''}</div>`;
   }
-  html += reviewHtml();
-  html += suggestionsHtml();
+  const segs = hasSegments(t); const many = t.routes.length > 1;
   days.forEach((d, di) => {
-    const col = dayColor(d.seg); const dateTxt = d.date ? ' · ' + d.date.toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric'}) : '';
+    const col = segs ? dayColor(d.seg) : ROUTE_BLUE; const dateTxt = d.date ? ' · ' + d.date.toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric'}) : '';
     if (d.kind === 'layover') {
       const p = pinById(t.route[d.idx[0]].pinId);
-      html += `<div class="day layover" style="--dc:${col}"><div class="day-head"><div class="dh"><div class="d1">Segment ${d.n}${dateTxt} · Layover</div><div class="d2">${esc(stopTown(t, d.idx[0]))}</div><div class="d3"><span><i class="fa-solid fa-mug-saucer"></i> No driving · night ${d.night} of ${d.nights}${p && p.stay ? ' at ' + esc(p.name) : ''}</span></div></div></div></div>`;
+      html += `<div class="day layover" style="--dc:${col}"><div class="day-head"><div class="dh"><div class="d1">Segment ${d.n}${dateTxt} · Layover</div><div class="d2">${esc(stopTown(t, d.idx[0]))}</div><div class="d3"><span><i class="fa-solid fa-mug-saucer"></i> No travel · night ${d.night} of ${d.nights}${p && p.stay ? ' at ' + esc(p.name) : ''}</span></div></div></div></div>`;
       return;
     }
-    const long = d.s > (t.maxDayHours + 0.5) * 3600;
     const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
     html += `<div class="day" style="--dc:${col}"><div class="day-head"><div class="dh"><div class="d1">Segment ${d.n}${dateTxt}</div>
       <div class="d2">${esc(from)}${from !== to ? ' → ' + esc(to) : ''}</div>
-      <div class="d3"><span><b style="color:var(--text)">${miles(d.d)}</b> · ${hrs(d.s)} driving</span>${long ? '<span class="pill warn"><i class="fa-solid fa-triangle-exclamation"></i>Long drive</span>' : ''}${d.ferry ? '<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry</span>' : ''}${d.missing ? `<span class="pill err">${d.missing} drive${d.missing === 1 ? '' : 's'} missing</span>` : ''}</div></div>
+      <div class="d3"><span>${modeLine(d.by).replace(/^([^·]+)·/, '<b style="color:var(--text)">$1</b>·')}</span>${d.ferry ? '<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry</span>' : ''}${d.missing ? `<span class="pill err">${d.missing} leg${d.missing === 1 ? '' : 's'} missing</span>` : ''}</div></div>
       <button class="mini-btn" data-act="zoom-day" data-i="${di}" title="Show this segment on the map"><i class="fa-solid fa-magnifying-glass-location"></i></button></div><ol class="stops seg-list" style="margin:0">`;
     d.idx.forEach((i, k) => {
       const s = t.route[i]; const p = pinById(s.pinId); const woke = k === 0 && d.seg > 0; const last = i === n - 1;
@@ -1812,12 +1768,14 @@ function daysView(){
       else if (p.stay && !woke) extra = `<div class="stop-extra">${stayChip(p)}</div>`;
       let sum = '';
       if (k > 0) {
-        let dd = 0, tt = 0, miss = false; for (let j = d.idx[0]; j < i; j++) { const x = st.legs[j] && st.legs[j].info; if (x && x.status === 'ok') { dd += x.d; tt += x.t; } else miss = true; }
-        if (k === d.idx.length - 1) sum = `<div class="seg-total"><i class="fa-solid fa-flag-checkered"></i><span><b>Segment ${d.n} total:</b> ${miles(dd)} · ${hrs(tt)} driving${miss ? ' (some drives still loading)' : ''}</span></div>`;
-        else if (k > 1) sum = `<div class="seg-sofar">So far this segment: ${miles(dd)} · ${hrs(tt)}</div>`;
+        let miss = false; for (let j = d.idx[0]; j < i; j++) { const l = st.legs[j]; if (l && l.mode !== 'gap' && !(l.info && l.info.status === 'ok')) miss = true; }
+        const sofar = modeLine(modeTotals(st.legs, d.idx[0], i));
+        if (k === d.idx.length - 1) sum = `<div class="seg-total"><i class="fa-solid fa-flag-checkered"></i><span><b>Segment ${d.n} total:</b> ${sofar}${miss ? ' (some legs still loading)' : ''}</span></div>`;
+        else if (k > 1) sum = `<div class="seg-sofar">So far this segment: ${sofar}</div>`;
       }
-      const canDrag = !woke && !ui.review;
-      html += `<li class="stop${woke ? ' woke' : ''}" data-sid="${s.sid}">${k > 0 ? legHtml(st.legs[i - 1], t) : ''}<div class="stop-main" style="padding-left:${canDrag ? 4 : ui.review ? 10 : 50}px">${canDrag ? '<button class="drag" aria-label="Drag to reorder"><i class="fa-solid fa-grip-lines"></i></button>' : ''}<span class="snum" style="background:${col}">${i + 1}</span>
+      const canDrag = !woke;
+      if (many && !woke && firstOfRoute(t, i)) { const R = routeById(t, s.r); html += `<li class="route-div" data-rid="${R.id}"><i class="fa-solid fa-${ROUTE_TYPES[R.type].icon}"></i>${esc(routeLabel(t, R))} starts${routeSwatch(R.type, col)}</li>`; }
+      html += `<li class="stop${woke ? ' woke' : ''}" data-sid="${s.sid}">${k > 0 ? legHtml(st.legs[i - 1], t) : ''}<div class="stop-main" style="padding-left:${canDrag ? 4 : 50}px">${canDrag ? '<button class="drag" aria-label="Drag to reorder"><i class="fa-solid fa-grip-lines"></i></button>' : ''}<span class="snum" style="background:${col}">${i + 1}</span>
         <span class="txt" data-act="focus-pin" data-id="${p.id}"><b>${esc(p.name)}</b>${pinLabel(p) ? `<small>${esc(pinLabel(p))}</small>` : ''}</span>${right}</div>${sum}${extra}</li>`;
     });
     html += `</ol></div>`;
@@ -1838,14 +1796,6 @@ function stayChip(p, offerAdd){
   if (sh.perks && s.points) bits.push('points');
   const icon = s.type === 'camping' ? CAMP_TYPES[s.camp].icon : STAY_TYPES[s.type].icon;
   return `<button class="stay-chip" data-act="edit-stay" data-id="${p.id}" title="See or edit the stay details"><i class="fa-solid fa-${icon}"></i>${esc(bits.join(' · '))}</button>`;
-}
-function suggestionsHtml(){
-  const sugs = liveSugs(); if (!sugs.length && !ui.sugBusy) return '';
-  let h = `<div class="sug-card"><div class="sug-title"><i class="fa-solid fa-circle-question"></i>Suggested overnight stops</div><p class="hint" style="margin:6px 0 4px">Some drives are longer than your limit for one segment. These towns are about the right distance along the way. They’re only suggestions until you press Add.</p>`;
-  sugs.forEach(s => { h += `<div class="sug-row"><span class="q">?</span><span class="txt" data-act="focus-sug" data-id="${s.id}"><b>${esc(s.name)}</b><small>about ${hrs(s.hours)} past ${esc(s.fromName)}</small></span><button class="btn sm amber" data-act="add-sug" data-id="${s.id}">Add</button><button class="mini-btn" data-act="dismiss-sug" data-id="${s.id}" title="Not this one" aria-label="Not this one"><i class="fa-solid fa-xmark"></i></button></div>`; });
-  if (ui.sugBusy) h += `<p class="hint"><i class="fa-solid fa-circle-notch fa-spin"></i> Looking for towns along the way…</p>`;
-  else if (sugs.length > 1) h += `<button class="btn amber" style="width:100%;margin-top:8px" data-act="add-all-sugs"><i class="fa-solid fa-check-double"></i>Add all ${sugs.length} suggested stops</button>`;
-  return h + `</div>`;
 }
 function fillRoutePlaces(){ const t = trip(); t.route.forEach(s => { const p = pinById(s.pinId); if (p && !p.place) fillPlace(p.id); }); }
 
@@ -2008,6 +1958,9 @@ document.addEventListener('click', async e => {
     case 'remove-from-route': { const pid = ui.editorPinId; change('Remove stop', t => { t.route = t.route.filter(s => s.pinId !== pid); }); undoToast('Removed from the route'); break; }
     case 'go': e.preventDefault(); setStep(el.dataset.step); break;
     case 'add-all': startRouteBuild(); break;
+    case 'add-route': addRouteFlow(); break;
+    case 'route-menu': routeMenu(el, id); break;
+    case 'set-active-route': change('Choose route', t => { t.activeRouteId = id; }); break;
     case 'rp-pick': rpPick(id); break;
     case 'rp-end': buildRoute(el.dataset.e); break;
     case 'rp-back': ui.rp = {stage: 'start', start: null}; render(); break;
@@ -2022,14 +1975,6 @@ document.addEventListener('click', async e => {
     case 'nights': change('Change nights', t => { const s = t.route.find(x => x.sid === el.dataset.sid); s.nights = clamp((s.nights || 1) + Number(el.dataset.d), 1, 30); }); break;
     case 'edit-stay': openEditor(id, false); ui.scrollToStay = true; if (!pinById(id).stay) ui.stayPick = true; renderEditor(); break;
     case 'zoom-day': { const st = routeStats(t); const d = computeDays(t, st)[+el.dataset.i]; if (!d) break; const pts = d.idx.map(i => pinById(t.route[i].pinId)).filter(Boolean).map(p => [p.lat, p.lng]); for (let j = d.idx[0]; j < d.idx[d.idx.length - 1]; j++) { const l = st.legs[j]; if (l && l.info && l.info.segs) l.info.segs.forEach(s => s.c.forEach(c => pts.push(c))); } if (pts.length === 1) map.setView(pts[0], 11); else if (pts.length) map.fitBounds(pts, {padding: [60, 60], maxZoom: 12}); break; }
-    case 'add-sug': addSuggestions([id]); break;
-    case 'rev-keep': reviewDecide(el.dataset.sid, true); break;
-    case 'rev-remove': reviewDecide(el.dataset.sid, false); break;
-    case 'rev-remove-all': { const items = ui.review ? ui.review.items : []; if (items.length) removeSugStops(items); finishReview(); break; }
-    case 'rev-done': finishReview(); break;
-    case 'add-all-sugs': addSuggestions(liveSugs().map(s => s.id)); break;
-    case 'dismiss-sug': dismissSug(id); break;
-    case 'focus-sug': { const s = liveSugs().find(x => x.id === id); if (s) { map.flyTo([s.lat, s.lng], Math.max(map.getZoom(), 8), {duration: .6}); setTimeout(() => sugLayer.eachLayer(m => { const ll = m.getLatLng(); if (ll.lat === s.lat && ll.lng === s.lng) m.openPopup(); }), 700); } break; }
     case 'stay-on': ui.stayPick = true; renderEditor(); break;
     case 'more-icons': ui.moreIcons = !ui.moreIcons; renderEditor(); break;
     case 'stay-cancel': ui.stayPick = false; renderEditor(); break;
@@ -2040,8 +1985,6 @@ document.addEventListener('click', async e => {
     case 'del-photo': change('Remove photo', t => { pinById(ui.editorPinId).stay.photos.splice(+el.dataset.i, 1); }); undoToast('Picture removed'); break;
     case 'view-photo': viewPhoto(id); break;
     case 'addr-prompt': promptAddresses(); break;
-    case 'suggest-days': suggestDays(); break;
-    case 'seg-mode': e.preventDefault(); prefs.segMode = el.dataset.m; savePrefs(); renderPanel(); break;
     case 'make-doc': makeDoc(el); break;
     case 'copy-text': copyText(); break;
   }
@@ -2058,7 +2001,6 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'edLayer') change('Move to layer', tr => { pinById(ui.editorPinId).layerId = t.value; const l = tr.layers.find(x => x.id === t.value); if (l) l.visible = true; });
   else if (t.id === 'startDate') change('Set start date', tr => { tr.startDate = t.value || ''; });
-  else if (t.id === 'maxHours') { ui.maxChanged = trip().route.length >= 2; change('Set daily driving', tr => { tr.maxDayHours = +t.value; }); }
   else if (t.dataset && t.dataset.stayCheck) { const k = t.dataset.stayCheck, v = t.checked; change('Edit stay details', tr => { const p = pinById(ui.editorPinId); if (p && p.stay) p.stay[k] = v; }, {render: false}); }
   else if (t.dataset && t.dataset.stayAmen) { const k = t.dataset.stayAmen, v = t.checked; change('Edit stay details', tr => { const p = pinById(ui.editorPinId); if (p && p.stay) p.stay.amen[k] = v; }, {render: false}); }
 });
@@ -2299,7 +2241,7 @@ function pickResult(i){
     checkDupBeforeAdd(r, toRoute).then(v => {
       if (!v) return;
       if (v === 'add') addPinAt(L.latLng(r.lat, r.lng), {name: r.name, place: r.place, address: r.address, poi: r.poi, toRoute});
-      else if (v.startsWith('route:')) { const id = v.slice(6); change('Add stop', t => t.route.push({sid: uid(), pinId: id, overnight: false})); undoToast('Added your existing pin to the route'); }
+      else if (v.startsWith('route:')) { const id = v.slice(6); change('Add stop', t => insertStop(t, id)); undoToast('Added your existing pin to the route'); }
       else { const p = pinById(v.slice(5)); finish(); if (p) { const l = layerById(p.layerId); if (l && !l.visible) change('Show layer', () => { layerById(p.layerId).visible = true; }); ui.selectedPinId = p.id; render(); flyToPin(p); } return; }
       finish(); });
   });
@@ -2484,8 +2426,12 @@ function exportKML(){
   }
   const st = routeStats(t);
   if (t.route.length > 1) {
-    const coords = []; st.legs.forEach(l => { if (l.info && l.info.status === 'ok') l.info.segs.forEach(s => s.c.forEach(c => coords.push(`${c[1]},${c[0]},0`))); else if (l.a && l.b) coords.push(`${l.a.lng},${l.a.lat},0`, `${l.b.lng},${l.b.lat},0`); });
-    k += `<Folder><name>Driving route</name><Placemark><name>${xmlEsc(t.name)} route</name><styleUrl>#route</styleUrl><LineString><tessellate>1</tessellate><coordinates>${coords.join(' ')}</coordinates></LineString></Placemark></Folder>\n`;
+    // one line per route (a route that starts somewhere new isn't joined to the one before)
+    const parts = new Map(); st.legs.forEach(l => { if (l.mode === 'gap') return; const rid = t.route[l.i + 1].r; if (!parts.has(rid)) parts.set(rid, []); const coords = parts.get(rid);
+      if (l.info && l.info.status === 'ok') l.info.segs.forEach(s => s.c.forEach(c => coords.push(`${c[1]},${c[0]},0`))); else if (l.a && l.b) coords.push(`${l.a.lng},${l.a.lat},0`, `${l.b.lng},${l.b.lat},0`); });
+    k += `<Folder><name>${t.routes.length > 1 ? 'Routes' : 'Driving route'}</name>`;
+    for (const [rid, coords] of parts) { const r = routeById(t, rid); k += `<Placemark><name>${xmlEsc(t.routes.length > 1 ? routeLabel(t, r) : t.name + ' route')}</name><styleUrl>#route</styleUrl><LineString><tessellate>1</tessellate><coordinates>${coords.join(' ')}</coordinates></LineString></Placemark>`; }
+    k += `</Folder>\n`;
   }
   k += `</Document></kml>`;
   download(new Blob([k], {type: 'application/vnd.google-earth.kml+xml'}), safeName(t.name) + '.kml');
@@ -2521,11 +2467,11 @@ function dayDateLong(d){ return d.date ? d.date.toLocaleDateString(undefined, {w
 /* small printable map of one day's drive, drawn on a canvas from map tiles */
 function loadTile(url){ return new Promise(res => { const img = new Image(); img.crossOrigin = 'anonymous'; const tm = setTimeout(() => res(null), 12000); img.onload = () => { clearTimeout(tm); res(img); }; img.onerror = () => { clearTimeout(tm); res(null); }; img.src = url; }); }
 async function dayMapImage(t, st, d){
-  const W = 1200, H = 600, PAD = 80; const col = dayColor(d.seg, true);
+  const W = 1200, H = 600, PAD = 80; const col = hasSegments(t) ? dayColor(d.seg, true) : '#1d4ed8';
   const lines = [], pts = [];
   for (let j = d.idx[0]; j < d.idx[d.idx.length - 1]; j++) {
     const l = st.legs[j];
-    if (l && l.info && l.info.status === 'ok') l.info.segs.forEach(sg => { lines.push(sg); pts.push(...sg.c); });
+    if (l && l.info && l.info.status === 'ok') l.info.segs.forEach(sg => { lines.push(Object.assign({mode: l.mode}, sg)); pts.push(...sg.c); });
     else if (l && l.a && l.b) { const sg = {m: 'none', c: [[l.a.lat, l.a.lng], [l.b.lat, l.b.lng]]}; lines.push(sg); pts.push(...sg.c); }
   }
   const stops = d.idx.map(i => ({i, p: pinById(t.route[i].pinId)})).filter(x => x.p);
@@ -2547,8 +2493,16 @@ async function dayMapImage(t, st, d){
   const px = (lat, lng) => { const [x, y] = proj(lat, lng, z); return [x - ox, y - oy]; };
   const path = sg => { g.beginPath(); sg.c.forEach((p, k) => { const [x, y] = px(p[0], p[1]); k ? g.lineTo(x, y) : g.moveTo(x, y); }); };
   g.lineJoin = g.lineCap = 'round';
-  for (const sg of lines) { path(sg); g.setLineDash([]); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 11; g.stroke(); }
-  for (const sg of lines) { path(sg); g.setLineDash(sg.m === 'drive' ? [] : [6, 12]); g.strokeStyle = sg.m === 'none' ? '#64748b' : col; g.lineWidth = sg.m === 'drive' ? 6 : 5; g.stroke(); }
+  for (const sg of lines) { if (sg.mode === 'gap' || sg.mode === 'hike') continue; path(sg); g.setLineDash([]); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = sg.mode === 'tour' ? 14 : 11; g.stroke(); }
+  for (const sg of lines) {
+    path(sg); g.setLineDash([]); g.lineCap = 'round';
+    if (sg.mode === 'gap' || sg.m === 'none') { g.setLineDash([10, 10]); g.strokeStyle = '#64748b'; g.lineWidth = 3; g.stroke(); continue; }
+    if (sg.m === 'ferry') { g.setLineDash([12, 10]); g.lineCap = 'butt'; g.strokeStyle = col; g.lineWidth = 5; g.stroke(); g.lineCap = 'round'; continue; }
+    if (sg.mode === 'hike') { g.setLineDash([0.1, 14]); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 12; g.stroke(); path(sg); g.strokeStyle = col; g.lineWidth = 8; g.stroke(); continue; }
+    if (sg.mode === 'tour') { g.strokeStyle = col; g.lineWidth = 10; g.stroke(); path(sg); g.strokeStyle = '#ffffff'; g.lineWidth = 3; g.stroke(); continue; }
+    g.strokeStyle = col; g.lineWidth = 6; g.stroke();
+  }
+  g.lineCap = 'round';
   g.setLineDash([]);
   for (let j = d.idx[0]; j < d.idx[d.idx.length - 1]; j++) (st.legs[j] && st.legs[j].vias || []).forEach(v => { const [x, y] = px(v.lat, v.lng); g.beginPath(); g.arc(x, y, 10, 0, Math.PI * 2); g.fillStyle = '#facc15'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = '#2a2000'; g.stroke(); g.fillStyle = '#2a2000'; g.font = 'bold 12px Calibri, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('W', x, y + 1); g.textAlign = 'left'; });
   const label = (txt, x, y) => { g.font = 'bold 19px Calibri, Arial, sans-serif'; g.lineWidth = 5; g.strokeStyle = 'rgba(255,255,255,.95)'; g.strokeText(txt, x, y); g.fillStyle = '#111827'; g.fillText(txt, x, y); };
@@ -2572,9 +2526,11 @@ async function itineraryBlocks(t, st, days){
   const P = (runs, o = {}) => B.push(Object.assign({k: 'p', runs: (Array.isArray(runs) ? runs : [runs]).map(r => typeof r === 'string' ? R(r) : r)}, o));
   B.push({k: 'title', text: t.name});
   const range = days[0].date ? `${days[0].date.toLocaleDateString(undefined, {month: 'long', day: 'numeric'})} – ${days[days.length - 1].date.toLocaleDateString(undefined, {month: 'long', day: 'numeric', year: 'numeric'})}` : '';
-  P(R([range, `${days.length} segment${days.length === 1 ? '' : 's'}`, `${t.route.length} stops`, milesWord(st.d), `about ${hrsWord(st.s)} of driving`].filter(Boolean).join('  ·  '), {c: '555555'}), {after: 6});
+  const tripTravel = MODES.filter(m => st.by[m] && st.by[m].d > 0).length > 1 || (st.by.hike || st.by.tour) ? modeLine(st.by, true) : `${milesWord(st.d)}  ·  about ${hrsWord(st.s)} of driving`;
+  P(R([range, `${days.length} segment${days.length === 1 ? '' : 's'}`, `${t.route.length} stops`, tripTravel].filter(Boolean).join('  ·  '), {c: '555555'}), {after: 6});
+  if (t.routes.length > 1) t.routes.forEach((r, k) => { const c = t.route.filter(x => x.r === r.id).length; if (c) P([R(`${routeName(t, r)}: `, {b: 1}), R(`${ROUTE_TYPES[r.type].label}, ${c} stop${c === 1 ? '' : 's'}${k > 0 && !r.joined ? ' (starts somewhere new)' : ''}`)], {bullet: 1}); });
   const lodging = lodgingTotals(t); if (lodging) P([R('Lodging: ', {b: 1, c: '6D28D9'}), R(lodging, {c: '6D28D9'})], {after: 15});
-  if (st.errors) P(R(`Note: ${st.errors} drive${st.errors === 1 ? '' : 's'} couldn’t be found and ${st.errors === 1 ? 'is' : 'are'} not included in the totals.`, {i: 1, c: 'B00020'}));
+  if (st.errors) P(R(`Note: ${st.errors} leg${st.errors === 1 ? '' : 's'} couldn’t be found and ${st.errors === 1 ? 'is' : 'are'} not included in the totals.`, {i: 1, c: 'B00020'}));
   const shown = new Set();
   const addStay = async (p, stop) => {
     const s = p.stay; const sh = stayShows(s); shown.add(p.id);
@@ -2608,7 +2564,7 @@ async function itineraryBlocks(t, st, days){
     const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
     P(R(`Segment ${d.n}: ${from}${from !== to ? ' to ' + to : ''}`, {c: colHex}), {h1: 1, before: 18});
     if (d.date) P(R(dayDateLong(d), {b: 1}));
-    P(R(`${milesWord(d.d)}  ·  about ${hrsWord(d.s)} of driving`, {c: '444444'}));
+    P(R(modeLine(d.by, true), {c: '444444'}));
     if (d.ferry) P(R(`Includes a ferry crossing: ${milesWord(d.ferry.d)}, about ${hrsWord(d.ferry.t)} on the water (plus boarding time).`, {c: '0369A1'}));
     try { const img = await dayMapImage(t, st, d); if (img) B.push({k: 'img', data: img.data, mime: 'image/png', w: 624, h: Math.round(624 * img.h / img.w), before: 6, after: 4, map: 1}); } catch (e) { console.error('day map', e); }
     P(R('Stops', {b: 1}), {before: 6});
@@ -2616,6 +2572,9 @@ async function itineraryBlocks(t, st, days){
       const i = d.idx[k]; const stop = t.route[i]; const p = pinById(stop.pinId); const pl = pinLabel(p);
       const endOfDay = k === d.idx.length - 1;
       const lead = k === 0 ? (d.seg === 0 ? 'Start: ' : 'Leave: ') : (endOfDay ? (i === t.route.length - 1 ? 'Trip ends: ' : 'Overnight: ') : '');
+      const begins = j => { const Rr = routeById(t, t.route[j].r); P(R(`${routeName(t, Rr)} begins: ${ROUTE_TYPES[Rr.type].label}`.toUpperCase(), {b: 1, c: colHex, size: 10}), {before: 8}); };
+      if (t.routes.length > 1 && i === 0) begins(0);
+      if (t.routes.length > 1 && k > 0 && firstOfRoute(t, i) && st.legs[i - 1] && st.legs[i - 1].mode === 'gap') begins(i);
       P([...(lead ? [R(lead, {b: 1})] : []), R(p.name, {b: 1}), ...(pl && !p.address ? [R(`  (${pl})`, {c: '666666'})] : [])], {bullet: 1, before: 4});
       if (p.address) P(R(p.address, {c: '444444'}), {indent: 1});
       if (!(k === 0 && d.seg > 0)) {
@@ -2623,8 +2582,10 @@ async function itineraryBlocks(t, st, days){
         p.links.forEach(l => P(R(l.url, {link: l.url}), {indent: 1}));
       }
       if (p.stay && !shown.has(p.id) && (endOfDay || k > 0)) await addStay(p, stop);
-      if (k < d.idx.length - 1) { const x = st.legs[i] && st.legs[i].info; const next = stopTitle(t, d.idx[k + 1]); const nv = st.legs[i] && st.legs[i].vias ? st.legs[i].vias.length : 0;
-        P(R(x && x.status === 'ok' ? `→ Drive ${milesWord(x.d)}, about ${hrsWord(x.t)}, to ${next}${x.ferry ? ' (includes a ferry)' : ''}${nv ? ` (via ${nv} waypoint${nv === 1 ? '' : 's'})` : ''}` : `→ Drive to ${next} (driving time unknown)`, {i: 1, c: colHex}), {indent: 1, before: 2}); }
+      if (k < d.idx.length - 1) { const lg = st.legs[i]; const x = lg && lg.info; const next = stopTitle(t, d.idx[k + 1]); const nv = lg && lg.vias ? lg.vias.length : 0; const V = (ROUTE_TYPES[lg && lg.mode] || ROUTE_TYPES.drive).verb;
+        if (t.routes.length > 1 && firstOfRoute(t, i + 1) && lg && lg.mode !== 'gap') begins(i + 1);
+        if (lg && lg.mode === 'gap') { P(R(`→ Make your own way to ${next} (about ${milesWord(x.d)} away; not part of a route)`, {i: 1, c: '64748B'}), {indent: 1, before: 2}); continue; }
+        P(R(x && x.status === 'ok' ? `→ ${V} ${milesWord(x.d)}, about ${hrsWord(x.t)}, to ${next}${x.ferry ? ' (includes a ferry)' : ''}${nv ? ` (via ${nv} waypoint${nv === 1 ? '' : 's'})` : ''}` : `→ ${V} to ${next} (time unknown)`, {i: 1, c: colHex}), {indent: 1, before: 2}); }
     }
   }
   const inRoute = new Set(t.route.map(s => s.pinId)); const others = t.pins.filter(p => !inRoute.has(p.id));
@@ -2633,7 +2594,7 @@ async function itineraryBlocks(t, st, days){
     t.layers.forEach(l => { const ps = others.filter(p => p.layerId === l.id); if (!ps.length) return; if (t.layers.length > 1) P(R(l.name, {b: 1}), {before: 8});
       ps.forEach(p => { const pl = pinLabel(p); P([R(p.name), ...(pl ? [R(`  (${pl})`, {c: '666666'})] : []), ...(p.notes ? [R(` — ${p.notes.replace(/\s*\n\s*/g, ' ')}`, {c: '555555'})] : [])], {bullet: 1}); }); });
   }
-  P(R(`Made with Larson Family Maps on ${new Date().toLocaleDateString()}. Drive times are estimates without traffic or stops.`, {size: 9, c: '888888', i: 1}), {before: 20});
+  P(R(`Made with Larson Family Maps on ${new Date().toLocaleDateString()}. Drive times are estimates without traffic or stops.${t.routes.some(r => r.type === 'hike') ? ' Hiking times assume about 3 mph on level paths, without breaks or hills.' : ''}`, {size: 9, c: '888888', i: 1}), {before: 20});
   return B;
 }
 
@@ -2736,7 +2697,8 @@ async function writePdf(t, B){
       } catch (e) { console.error('pdf image', e); }
       if (x.after) y += x.after; continue;
     }
-    if (x.h1) { room(17 * 1.3 + 90); doc.setFont('AH', 'bold'); para(Object.assign({}, x, {runs: x.runs.map(r => Object.assign({}, r, {b: 1}))}), 17); y += 2; }
+    if (x.h1) { let need = 17 * 1.3 + 90; for (let q = n + 1; q < Math.min(B.length, n + 6); q++) { const y2 = B[q]; if (y2.h1) break; if (y2.k === 'img' && y2.map) { const mw = Math.min(y2.w * .75, PW - 2 * M); need = 17 * 1.3 + 60 + mw * y2.h / y2.w; break; } }
+      room(need); doc.setFont('AH', 'bold'); para(Object.assign({}, x, {runs: x.runs.map(r => Object.assign({}, r, {b: 1}))}), 17); y += 2; }
     else para(x, x.runs[0] && x.runs[0].size ? x.runs[0].size : 11.5);
     if (x.after) y += x.after;
   }
@@ -2767,19 +2729,21 @@ async function makeDoc(btn){
 }
 function planText(){
   const {t, st, days} = planData(); const L = [];
-  L.push(t.name.toUpperCase()); L.push(`${days.length} segment${days.length === 1 ? '' : 's'} · ${t.route.length} stops · ${milesWord(st.d)} · about ${hrsWord(st.s)} of driving`);
+  L.push(t.name.toUpperCase()); L.push(`${days.length} segment${days.length === 1 ? '' : 's'} · ${t.route.length} stops · ${(st.by.hike || st.by.tour) ? modeLine(st.by, true).replace(/  ·  /g, ' · ') : `${milesWord(st.d)} · about ${hrsWord(st.s)} of driving`}`);
   const lodging = lodgingTotals(t); if (lodging) L.push('Lodging: ' + lodging); L.push('');
   const shown = new Set();
   for (const d of days) {
     if (d.kind === 'layover') { L.push(`Segment ${d.n}: Layover in ${stopTown(t, d.idx[0])}${d.date ? ' (' + dayDateLong(d) + ')' : ''}`); L.push(`  No driving. Night ${d.night} of ${d.nights}.`); L.push(''); continue; }
     const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
     L.push(`Segment ${d.n}: ${from}${from !== to ? ' to ' + to : ''}${d.date ? ' (' + dayDateLong(d) + ')' : ''}`);
-    L.push(`  ${milesWord(d.d)} · about ${hrsWord(d.s)} of driving${d.ferry ? ' · includes a ferry' : ''}`);
+    L.push(`  ${modeLine(d.by, true).replace(/  ·  /g, ' · ')}${d.ferry ? ' · includes a ferry' : ''}`);
     d.idx.forEach((i, k) => {
+      const begins = j => { const Rr = routeById(t, t.route[j].r); L.push(`  [${routeName(t, Rr)} begins: ${ROUTE_TYPES[Rr.type].label}]`); };
+      if (t.routes.length > 1 && (i === 0 || (k > 0 && firstOfRoute(t, i) && st.legs[i - 1] && st.legs[i - 1].mode === 'gap'))) begins(i);
       const p = pinById(t.route[i].pinId); L.push(`  • ${p.name}${p.address ? ' — ' + p.address : pinLabel(p) ? ' (' + pinLabel(p) + ')' : ''}`);
       if (!(k === 0 && d.seg > 0)) { if (p.notes) L.push('      ' + p.notes.replace(/\n+/g, ' / ')); p.links.forEach(l => L.push('      ' + l.url)); }
       if (p.stay && !shown.has(p.id) && k > 0) { shown.add(p.id); const s = p.stay; const sh = stayShows(s); L.push(`      STAYING: ${stayLabel(s)}` + [sh.site && s.site && 'site ' + s.site, sh.phone && s.phone, sh.times && s.checkin && 'check-in ' + s.checkin, sh.times && s.checkout && 'check-out ' + s.checkout, sh.conf && s.conf && 'conf. #' + s.conf, sh.money && parseMoney(s.paid) !== null && money(s.paid) + ' paid', sh.money && parseMoney(s.due) !== null && money(s.due) + ' due on arrival', sh.perks && s.reward && 'reward night', sh.perks && s.points && 'paid with points', sh.amen && stayAmenList(s).length && 'has ' + stayAmenList(s).join(', ')].filter(Boolean).map(x => ' · ' + x).join('')); if (s.notes) L.push(`      ${stayNotesLabel(s)}: ` + s.notes.replace(/\n+/g, ' / ')); }
-      if (k < d.idx.length - 1) { const x = st.legs[i]?.info; if (x && x.status === 'ok') L.push(`      → ${miles(x.d)}, ${hrs(x.t)}`); }
+      if (k < d.idx.length - 1) { const lg = st.legs[i]; const x = lg?.info; if (t.routes.length > 1 && firstOfRoute(t, i + 1) && lg && lg.mode !== 'gap') begins(i + 1); if (lg && lg.mode === 'gap') L.push('      → make your own way to the next stop'); else if (x && x.status === 'ok') L.push(`      → ${lg.mode !== 'drive' ? ROUTE_TYPES[lg.mode].verb.toLowerCase() + ' ' : ''}${miles(x.d)}, ${hrs(x.t)}`); }
     });
     L.push('');
   }
@@ -2797,8 +2761,8 @@ async function copyText(){
 function stepsHtml(){
   return `<div class="welcome-steps">
     <div><span class="n" style="background:var(--pins)">1</span><span><b>Pins.</b> Drop every place you might want to see: click anywhere on the map, or search for a place. Click any pin to name it, add notes and links, and pick an icon and color.<p></p></span></div>
-    <div><span class="n" style="background:var(--route)">2</span><span><b>Route.</b> Connect the dots: click pins in the order you’ll visit them. You’ll see the miles and driving time for every drive. Drag stops to change the order, or press <b>Suggest order</b>.</span></div>
-    <div><span class="n" style="background:var(--days)">3</span><span><b>Segments.</b> Press <b>End segment</b> on the stops where you’ll sleep, and use <b>+</b> for extra nights. Or choose <b>Smart Segments</b> and the site plans them for you, suggesting towns to stop in. Then export the trip itinerary, with a map for each segment and all your stay details.</span></div></div>`;
+    <div><span class="n" style="background:var(--route)">2</span><span><b>Route.</b> Connect the dots: click pins in the order you’ll visit them. You’ll see the miles and time for every leg. Drag stops to change the order, or press <b>Suggest order</b>. Need a hike or a group tour too? Press <b>Add another route</b>: hiking routes follow footpaths and show as a dotted line, and group tours show as a double line. Lines stay blue until you add segments.</span></div>
+    <div><span class="n" style="background:var(--days)">3</span><span><b>Segments.</b> Press <b>End segment</b> on the stops where you’ll sleep, and use <b>+</b> for extra nights. Then export the trip itinerary, with a map for each segment and all your stay details.</span></div></div>`;
 }
 function showWelcome(){
   modal({title: 'Welcome to Larson Family Maps', html: `<p>Plan a trip in three steps:</p>${stepsHtml()}<p>Everything saves automatically in this browser. Made a mistake? Press <i class="fa-solid fa-rotate-left"></i> Undo at the top.</p>`, buttons: [{label: 'Let’s go', kind: 'green'}]}).then(() => { prefs.seenWelcome = true; savePrefs(); });
