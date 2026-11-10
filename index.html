@@ -199,6 +199,11 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .result b{display:block}
 .result small{display:block;color:var(--muted);font-size:13px}
 .results .note{padding:14px;color:var(--muted)}
+.res-head{padding:9px 14px 5px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);border-top:1px solid var(--line);background:var(--panel2)}
+.res-head:first-child{border-top:none}
+.result .dist{color:#93c5fd;font-weight:700}
+.near-dot{width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--pins);color:var(--pins);display:grid;place-items:center;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:pointer}
+.near-dot:hover{background:var(--pins);color:#fff}
 .map-tools{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:8px;z-index:1000;align-items:flex-end}
 .tool{display:flex;align-items:center;gap:9px;min-height:46px;padding:0 15px;border-radius:12px;border:1px solid var(--line);background:var(--panel);font-weight:700;font-size:15px;box-shadow:0 6px 18px rgba(0,0,0,.35)}
 .tool:hover{background:var(--panel2)}
@@ -392,7 +397,7 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
       <div class="save-status ok" id="saveStatus" title="Your trips save automatically in this browser"><i class="fa-solid fa-circle-check"></i><span class="st">Saved</span></div>
       <button class="icon-btn" id="undoBtn" title="Undo (Ctrl/⌘ Z)" aria-label="Undo"><i class="fa-solid fa-rotate-left"></i></button>
       <button class="icon-btn" id="redoBtn" title="Redo" aria-label="Redo"><i class="fa-solid fa-rotate-right"></i></button>
-      <button class="icon-btn" id="moreBtn" title="Import, export and help" aria-label="More"><i class="fa-solid fa-bars"></i></button>
+      <button class="icon-btn" id="moreBtn" title="Import, export, backup and help" aria-label="Import, export, backup and help"><i class="fa-solid fa-folder-open"></i></button>
     </div>
   </header>
   <main>
@@ -520,7 +525,7 @@ async function fetchJSON(url, ms = 15000){ const c = new AbortController(); cons
    DATA + SAVING
    ========================================================= */
 let db = {version: APP_VERSION, trips: [], currentId: null};
-let prefs = {basemap: 'dark', step: 'pins', seenWelcome: false, segMode: 'manual'};
+let prefs = {basemap: 'vstreets', step: 'pins', seenWelcome: false, segMode: 'manual'};
 let storageOK = true;
 
 function newTrip(name){ const lid = uid(); return {id: uid(), name: name || 'New trip', created: Date.now(), updated: Date.now(), layers: [{id: lid, name: 'Places', visible: true}], activeLayerId: lid, pins: [], route: [], startDate: '', maxDayHours: 7}; }
@@ -545,7 +550,7 @@ function load(){
   try { const raw = localStorage.getItem(STORE_KEY); if (raw) { const d = JSON.parse(raw); if (d && Array.isArray(d.trips)) db = d; } } catch (e) { storageOK = false; }
   try { const p = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null'); if (p) prefs = Object.assign(prefs, p); } catch {}
   db.trips = (db.trips || []).filter(Boolean).map(normalizeTrip);
-  if (!db.trips.length) { const t = newTrip('My first trip'); db.trips.push(t); db.currentId = t.id; }
+  if (!db.trips.length) { const t = newTrip('New Map'); db.trips.push(t); db.currentId = t.id; }
   if (!db.trips.some(t => t.id === db.currentId)) db.currentId = db.trips[0].id;
 }
 const trip = () => db.trips.find(t => t.id === db.currentId);
@@ -560,7 +565,7 @@ function saveNow(){
   catch (e) {
     trimLegCache(0.4);
     try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); setSave('ok'); }
-    catch (e2) { setSave('err'); toast('Could not save in this browser. Use ☰ → “Download a backup” right away.', {err: true, ms: 12000}); }
+    catch (e2) { setSave('err'); toast('Could not save in this browser. Use the folder button (top right) → “Download a backup” right away.', {err: true, ms: 12000}); }
   }
 }
 function savePrefs(){ try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {} }
@@ -687,33 +692,26 @@ function ensureMapLibre(){
 }
 const vector = style => () => [L.maplibreGL({style: 'https://tiles.openfreemap.org/styles/' + style, attribution: OFM_ATTR, interactive: false})];
 const BASEMAPS = {
-  vstreets:  {group: 'Sharp maps', label: 'Streets',   icon: 'road',     vector: true, make: vector('liberty')},
-  vdark:     {group: 'Sharp maps', label: 'Dark',      icon: 'moon',     vector: true, make: vector('dark')},
-  vlight:    {group: 'Sharp maps', label: 'Light',     icon: 'sun',      vector: true, make: vector('positron')},
-  satellite: {group: 'Classic maps', label: 'Satellite', icon: 'earth-americas', make: () => [esri('World_Imagery', {attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, Maxar, Earthstar Geographics'}), esri('Reference/World_Transportation', {attribution: '', opacity: .8}), esri('Reference/World_Boundaries_and_Places', {attribution: ''})]},
-  terrain:   {group: 'Classic maps', label: 'Terrain',   icon: 'mountain', make: () => [L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {subdomains: 'abc', maxZoom: 17, attribution: OSM_ATTR + ', SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a>'})]},
-  streets:   {group: 'Classic maps', label: 'Streets (classic)', icon: 'road', make: () => [esri('World_Street_Map', {attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors'})]},
-  dark:      {group: 'Classic maps', label: 'Dark (classic)',    icon: 'moon', make: () => [esri('Canvas/World_Dark_Gray_Base', {maxNativeZoom: 16, attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, HERE, Garmin, &copy; OpenStreetMap contributors'}), esri('Canvas/World_Dark_Gray_Reference', {maxNativeZoom: 16, attribution: ''})]}
+  vstreets:  {label: 'Streets',   icon: 'road',     vector: true, make: vector('liberty')},
+  satellite: {label: 'Satellite', icon: 'earth-americas', make: () => [esri('World_Imagery', {attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, Maxar, Earthstar Geographics'}), esri('Reference/World_Transportation', {attribution: '', opacity: .8}), esri('Reference/World_Boundaries_and_Places', {attribution: ''})]},
+  terrain:   {label: 'Terrain',   icon: 'mountain', make: () => [L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {subdomains: 'abc', maxZoom: 17, attribution: OSM_ATTR + ', SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a>'})]}
 };
+/* only used if a device can't draw the sharp map (not shown in the menu) */
+const FALLBACK_STREETS = {label: 'Streets', make: () => [esri('World_Street_Map', {attribution: 'Powered by <a href="https://www.esri.com">Esri</a> · Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors'})]};
 let baseLayers = [], basemapSeq = 0;
 async function setBasemap(key){
-  if (!BASEMAPS[key]) key = 'dark';
+  if (!BASEMAPS[key]) key = 'vstreets';
   const seq = ++basemapSeq; const b = BASEMAPS[key];
   if (b.vector) {
     try { await ensureMapLibre(); }
-    catch (e) { console.error(e); if (seq === basemapSeq) { toast('The sharp map couldn’t load on this device, so the classic map is showing.', {err: true, ms: 6000}); setBasemap(key === 'vdark' ? 'dark' : 'streets'); } return; }
+    catch (e) { console.error(e); if (seq === basemapSeq) { toast('The sharp map couldn’t load on this device, so a simpler street map is showing.', {err: true, ms: 6000}); baseLayers.forEach(l => map.removeLayer(l)); baseLayers = FALLBACK_STREETS.make(); baseLayers.forEach(l => l.addTo(map)); prefs.basemap = key; renderBasemapMenu(); } return; }
     if (seq !== basemapSeq) return;
   }
   baseLayers.forEach(l => map.removeLayer(l)); baseLayers = b.make(); baseLayers.forEach(l => l.addTo(map));
   prefs.basemap = key; savePrefs(); renderBasemapMenu();
 }
 function renderBasemapMenu(){
-  let g = '', h = '';
-  for (const [k, b] of Object.entries(BASEMAPS)) {
-    if (b.group !== g) { g = b.group; h += `<div class="bm-group">${g}${g === 'Sharp maps' ? ' <span class="bm-new">New</span>' : ''}</div>`; }
-    h += `<button data-bm="${k}" class="${prefs.basemap === k ? 'on' : ''}"><i class="fa-solid fa-${b.icon}"></i>${b.label}</button>`;
-  }
-  $('#basemapMenu').innerHTML = h;
+  $('#basemapMenu').innerHTML = Object.entries(BASEMAPS).map(([k, b]) => `<button data-bm="${k}" class="${prefs.basemap === k ? 'on' : ''}"><i class="fa-solid fa-${b.icon}"></i>${b.label}</button>`).join('');
 }
 $('#styleBtn').onclick = e => { e.stopPropagation(); $('#basemapMenu').hidden = !$('#basemapMenu').hidden; };
 $('#basemapMenu').onclick = e => { const b = e.target.closest('[data-bm]'); if (b) { setBasemap(b.dataset.bm); $('#basemapMenu').hidden = true; } };
@@ -1296,7 +1294,7 @@ function pinsView(){
   const f = ui.filter.trim().toLowerCase();
   let html = '';
   if (!t.pins.length) {
-    return html + `<div class="empty"><i class="fa-solid fa-map-location-dot big"></i><b>Step 1: Drop your pins</b>Put down every place you might want to see. Don’t worry about the order yet.<br><br><b style="display:inline;font-size:inherit;color:var(--pins)">${TAP} anywhere on the map</b> to drop a pin, or search for a place in the box on the map.</div>
+    return html + `<div class="empty"><i class="fa-solid fa-map-location-dot big"></i><b>Step 1: Drop your pins</b><b style="display:inline;font-size:inherit;color:var(--pins)">${TAP} anywhere on the map</b> to drop a pin, or search for a place in the box on the map.</div>
       <button class="btn big ghost" data-act="import"><i class="fa-solid fa-file-import"></i>Import a Google My Map</button>`;
   }
   html += `<p class="hint" style="margin-top:0"><i class="fa-solid fa-hand-pointer" style="color:var(--pins)"></i> ${TAP} anywhere on the map to drop a pin. ${TAP} a pin to edit it.</p>`;
@@ -1777,7 +1775,9 @@ function fromNominatim(r){
   const road = a.road || a.pedestrian || a.footway || '';
   const address = road ? fmtAddress(a.house_number, road, city, pl.state, a.postcode, pl.cc, pl.country) : '';
   const isPlace = r.category === 'place' || r.category === 'boundary';
-  const name = r.name || (a.house_number && address ? address.split(',')[0] : '') || placeShort(pl) || String(r.display_name || '').split(',')[0];
+  const TYPE_NAMES = {fuel: 'Gas station', hotel: 'Hotel', motel: 'Motel', cafe: 'Café', restaurant: 'Restaurant', fast_food: 'Fast food', charging_station: 'Charging station', supermarket: 'Grocery store', toilets: 'Restrooms', camp_site: 'Campground', parking: 'Parking'};
+  const typeName = !isPlace && r.type && r.type !== 'yes' ? (TYPE_NAMES[r.type] || r.type.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())) : '';
+  const name = r.name || (a.house_number && address ? address.split(',')[0] : '') || typeName || placeShort(pl) || String(r.display_name || '').split(',')[0];
   const sub = isPlace ? [pl.state, pl.country].filter(x => x && x !== name).join(', ') : (address && address !== name ? address : placeShort(pl));
   const bb = (r.boundingbox || []).map(Number); const extent = bb.length === 4 && isPlace ? [bb[2], bb[1], bb[3], bb[0]] : null;
   return {name, sub, address, lat: +r.lat, lng: +r.lon, place: pl, kind: r.type || '', key: r.category || '', extent, poi: !!r.name && !isPlace, hasNumber: !!a.house_number};
@@ -1813,11 +1813,37 @@ async function nominatimSearch(q){
   const r = await fetchJSON(`${NOMINATIM}/search?format=jsonv2&addressdetails=1&limit=6&accept-language=en&q=${encodeURIComponent(q)}`, 12000);
   return (Array.isArray(r.json) ? r.json : []).map(fromNominatim);
 }
+/* "Near here" search: when zoomed in, words like "hotel", "gas station" or "pizza"
+   look inside the part of the map you're viewing first. */
+const NEAR_WORDS = {coffee: 'cafe', 'coffee shop': 'cafe', gas: 'gas station', fuel: 'gas station', 'ev charger': 'charging station', 'ev charging': 'charging station', charger: 'charging station', supercharger: 'charging station', 'tesla supercharger': 'charging station', grocery: 'supermarket', groceries: 'supermarket', 'grocery store': 'supermarket', food: 'restaurant', camping: 'campground', campsite: 'campground', lodging: 'hotel', hotels: 'hotel', motels: 'motel', restaurants: 'restaurant', 'rest stop': 'rest area', bathroom: 'toilets', restroom: 'toilets', restrooms: 'toilets', laundromat: 'laundry'};
+const nearMode = q => map.getZoom() >= 9 && !looksLikeAddress(q) && !q.includes(',') && q.trim().split(/\s+/).length <= 4 && expandQuery(q) === q;
+function viewBox(){ const b = map.getBounds().pad(0.05); return {w: b.getWest(), s: b.getSouth(), e: b.getEast(), n: b.getNorth()}; }
+async function photonNear(q){
+  const v = viewBox(); const url = `${PHOTON}/api/?q=${encodeURIComponent(q)}&bbox=${v.w.toFixed(4)},${v.s.toFixed(4)},${v.e.toFixed(4)},${v.n.toFixed(4)}&limit=20&lang=en`;
+  let r = await fetchJSON(url, 12000).catch(() => null);
+  if (!r || !r.ok) { await sleep(600); r = await fetchJSON(url, 12000); }   // the free server sometimes drops a request; try once more
+  return ((r.json && r.json.features) || []).map(fromPhoton);
+}
+async function nominatimNear(q){
+  const v = viewBox(); const term = NEAR_WORDS[q.toLowerCase().trim()] || q;
+  const url = `${NOMINATIM}/search?format=jsonv2&addressdetails=1&limit=40&bounded=1&accept-language=en&viewbox=${v.w.toFixed(4)},${v.n.toFixed(4)},${v.e.toFixed(4)},${v.s.toFixed(4)}&q=${encodeURIComponent(term)}`;
+  let r = await fetchJSON(url, 12000).catch(() => null);
+  if (!r || !r.ok) { await sleep(1200); r = await fetchJSON(url, 12000); }
+  return (Array.isArray(r.json) ? r.json : []).map(fromNominatim);
+}
+const nearLayer = L.layerGroup().addTo(map);
+function drawNearDots(){
+  nearLayer.clearLayers();
+  searchResults.forEach((r, i) => { if (!r.near) return;
+    const m = L.marker([r.lat, r.lng], {icon: L.divIcon({className: '', html: `<div class="near-dot"><i class="fa-solid fa-${kindIcon(r.kind)}"></i></div>`, iconSize: [26, 26], iconAnchor: [13, 13], tooltipAnchor: [0, -14]}), zIndexOffset: 1800});
+    m.bindTooltip(esc(r.name), {className: 'pin-tip', direction: 'top'}); m.on('click', () => pickResult(i)); m.addTo(nearLayer); });
+}
+function clearNear(){ nearLayer.clearLayers(); }
 sInput.addEventListener('input', () => {
   $('#searchClear').hidden = !sInput.value; clearTimeout(searchTimer); clearTimeout(fullTimer);
-  const q = sInput.value.trim(); if (q.length < 3) { sBox.hidden = true; return; }
+  const q = sInput.value.trim(); if (q.length < 3) { sBox.hidden = true; clearNear(); return; }
   searchTimer = setTimeout(() => doSearch(q, false), 350);
-  if (looksLikeAddress(q) && q.length >= 8) fullTimer = setTimeout(() => doSearch(q, true), 1300);
+  if ((looksLikeAddress(q) && q.length >= 8) || nearMode(q)) fullTimer = setTimeout(() => doSearch(q, true), 1100);
 });
 sInput.addEventListener('keydown', e => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!searchResults.length) return; kbIndex = (kbIndex + (e.key === 'ArrowDown' ? 1 : -1) + searchResults.length) % searchResults.length; showResults(); }
@@ -1825,48 +1851,67 @@ sInput.addEventListener('keydown', e => {
     e.preventDefault(); clearTimeout(searchTimer); clearTimeout(fullTimer);
     const q = sInput.value.trim();
     if (kbIndex >= 0 && searchResults.length && !sBox.hidden) pickResult(kbIndex);
-    else if (q.length >= 2) { if (lastFull === q && searchResults.length) pickResult(0); else doSearch(q, true, true); }
+    else if (q.length >= 2) { if (lastFull === q && searchResults.length) { if (!nearMode(q)) pickResult(0); } else doSearch(q, true, !nearMode(q)); }
   }
   else if (e.key === 'Escape') { sBox.hidden = true; sInput.blur(); }
 });
 sInput.addEventListener('focus', () => { if (searchResults.length && sInput.value.trim().length >= 3) sBox.hidden = false; });
-$('#searchClear').onclick = () => { sInput.value = ''; $('#searchClear').hidden = true; sBox.hidden = true; searchResults = []; lastFull = ''; if (previewMarker) { map.removeLayer(previewMarker); previewMarker = null; } sInput.focus(); };
+$('#searchClear').onclick = () => { sInput.value = ''; $('#searchClear').hidden = true; sBox.hidden = true; searchResults = []; lastFull = ''; clearNear(); if (previewMarker) { map.removeLayer(previewMarker); previewMarker = null; } sInput.focus(); };
 document.addEventListener('mousedown', e => { if (!e.target.closest('#mapSearch')) sBox.hidden = true; });
 async function doSearch(q, full, pickFirst){
   const seq = ++searchSeq; sBox.hidden = false;
-  if (!searchResults.length || full) sBox.innerHTML = `<div class="note"><i class="fa-solid fa-circle-notch fa-spin"></i> ${full ? 'Searching everywhere…' : 'Searching…'}</div>`;
+  const near = nearMode(q);
+  if (!searchResults.length || full) sBox.innerHTML = `<div class="note"><i class="fa-solid fa-circle-notch fa-spin"></i> ${near ? 'Searching this area…' : full ? 'Searching everywhere…' : 'Searching…'}</div>`;
   const eq = expandQuery(q);
-  const jobs = [photonSearch(eq).catch(() => null)];
-  if (full) jobs.push(nominatimSearch(eq).catch(() => null));
-  const [ph, nm] = await Promise.all(jobs);
+  const [ph, nm, pn, nn] = await Promise.all([
+    photonSearch(eq).catch(() => null),
+    full ? nominatimSearch(eq).catch(() => null) : null,
+    near ? photonNear(eq).catch(() => null) : null,
+    near && full ? nominatimNear(eq).catch(() => null) : null]);
   if (seq !== searchSeq) return;
-  if (ph === null && (!full || nm === null)) { sBox.innerHTML = '<div class="note"><i class="fa-solid fa-wifi"></i> Search isn’t reachable right now. Check your internet connection.</div>'; return; }
+  if (ph === null && nm === null && pn === null && nn === null) { sBox.innerHTML = '<div class="note"><i class="fa-solid fa-wifi"></i> Search isn’t reachable right now. Check your internet connection.</div>'; return; }
   const merged = full ? [...(looksLikeAddress(q) ? (nm || []) : []), ...(ph || []), ...(looksLikeAddress(q) ? [] : (nm || []))] : (ph || []);
-  searchResults = rankResults(merged, eq); kbIndex = -1; if (full) lastFull = q;
+  let others = rankResults(merged, eq);
+  let nearList = [];
+  if (near) {
+    const c = map.getCenter(); const vb = map.getBounds().pad(0.05);
+    const pool = [...(nn || []), ...(pn || []), ...others].filter(r => vb.contains([r.lat, r.lng]) && r.key !== 'place' && r.key !== 'boundary' && !['city', 'town', 'village', 'hamlet', 'suburb', 'neighbourhood', 'state', 'county', 'administrative', 'postcode'].includes(r.kind));
+    for (const r of pool) if (!nearList.some(o => haversine(o, r) < 60 || (norm(o.name) === norm(r.name) && haversine(o, r) < 400))) nearList.push(r);
+    nearList.forEach(r => { r.near = true; r.dist = haversine(c, r); });
+    nearList.sort((a, b) => a.dist - b.dist); nearList = nearList.slice(0, 40);
+    others = others.filter(r => !nearList.includes(r)).slice(0, 5);
+  }
+  searchResults = [...nearList, ...others]; kbIndex = -1; if (full) lastFull = q;
+  drawNearDots();
   if (pickFirst && searchResults.length) { pickResult(0); return; }
   showResults(full);
 }
-function kindIcon(k){ const m = {city: 'city', town: 'city', village: 'house', house: 'house', restaurant: 'utensils', cafe: 'mug-hot', fuel: 'gas-pump', hotel: 'bed', motel: 'bed', camp_site: 'campground', caravan_site: 'caravan', museum: 'building-columns', park: 'tree', national_park: 'tree', nature_reserve: 'tree', peak: 'mountain', viewpoint: 'mountain-sun', beach: 'umbrella-beach', attraction: 'star', aerodrome: 'plane', ferry_terminal: 'ferry', charging_station: 'charging-station', lake: 'water', water: 'water', brewery: 'beer-mug-empty', pub: 'beer-mug-empty', bar: 'beer-mug-empty'}; return m[k] || 'location-dot'; }
+function kindIcon(k){ const m = {fast_food: 'burger', supermarket: 'cart-shopping', convenience: 'shop', toilets: 'restroom', parking: 'square-parking', pharmacy: 'prescription-bottle-medical', hospital: 'hospital', guest_house: 'bed', hostel: 'bed', camp_pitch: 'tent', picnic_site: 'tree', ice_cream: 'ice-cream', city: 'city', town: 'city', village: 'house', house: 'house', restaurant: 'utensils', cafe: 'mug-hot', fuel: 'gas-pump', hotel: 'bed', motel: 'bed', camp_site: 'campground', caravan_site: 'caravan', museum: 'building-columns', park: 'tree', national_park: 'tree', nature_reserve: 'tree', peak: 'mountain', viewpoint: 'mountain-sun', beach: 'umbrella-beach', attraction: 'star', aerodrome: 'plane', ferry_terminal: 'ferry', charging_station: 'charging-station', lake: 'water', water: 'water', brewery: 'beer-mug-empty', pub: 'beer-mug-empty', bar: 'beer-mug-empty'}; return m[k] || 'location-dot'; }
 function showResults(full){
-  const q = sInput.value.trim();
-  const more = !full && lastFull !== q ? `<button class="result" data-full="1" style="color:#93c5fd"><i class="fa-solid fa-magnifying-glass-plus" style="color:#93c5fd"></i><span><b>Not here? Search everywhere</b><small>Best for exact street addresses. You can also press Enter.</small></span></button>` : '';
-  if (!searchResults.length) { sBox.innerHTML = (full ? '<div class="note">No places found. Check the spelling, or add a city and state.</div>' : '') + more; sBox.hidden = !sBox.innerHTML; return; }
-  sBox.innerHTML = searchResults.map((r, i) => `<button class="result${i === kbIndex ? ' kb' : ''}" data-r="${i}"><i class="fa-solid fa-${r.hasNumber ? 'house' : kindIcon(r.kind)}"></i><span><b>${esc(r.name)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</span></button>`).join('') + more;
-  sBox.hidden = false;
+  const q = sInput.value.trim(); const near = nearMode(q);
+  const more = !full && lastFull !== q ? `<button class="result" data-full="1" style="color:#93c5fd"><i class="fa-solid fa-magnifying-glass-plus" style="color:#93c5fd"></i><span><b>${near ? 'Search this area more' : 'Not here? Search everywhere'}</b><small>${near ? 'Finds every place of this kind on the map you’re looking at.' : 'Best for exact street addresses. You can also press Enter.'}</small></span></button>` : '';
+  const nearCount = searchResults.filter(r => r.near).length;
+  if (!searchResults.length) { sBox.innerHTML = (full ? `<div class="note">${near ? 'Nothing found in the area you’re looking at. Try zooming out or moving the map.' : 'No places found. Check the spelling, or add a city and state.'}</div>` : '') + more; sBox.hidden = !sBox.innerHTML; return; }
+  const row = (r, i) => `<button class="result${i === kbIndex ? ' kb' : ''}" data-r="${i}"><i class="fa-solid fa-${r.hasNumber && !r.poi && !r.near ? 'house' : kindIcon(r.kind)}"></i><span><b>${esc(r.name)}</b><small>${r.near ? `<span class="dist">${miles(r.dist)}</span> · ` : ''}${esc(r.sub || '')}</small></span></button>`;
+  let h = '';
+  if (nearCount) h += `<div class="res-head"><i class="fa-solid fa-location-crosshairs"></i> In the area you’re looking at · ${nearCount}</div>`;
+  searchResults.forEach((r, i) => { if (i === nearCount && nearCount) h += `<div class="res-head">Other places</div>`; h += row(r, i); });
+  sBox.innerHTML = h + more; sBox.hidden = false;
 }
 sBox.addEventListener('click', e => { if (e.target.closest('[data-full]')) { doSearch(sInput.value.trim(), true); return; } const b = e.target.closest('[data-r]'); if (b) pickResult(+b.dataset.r); });
 function pickResult(i){
   const r = searchResults[i]; if (!r) return; sBox.hidden = true; sInput.blur();
   if (previewMarker) map.removeLayer(previewMarker);
   if (r.extent && r.extent.length === 4 && !r.hasNumber) map.flyToBounds([[r.extent[1], r.extent[0]], [r.extent[3], r.extent[2]]], {maxZoom: 14, duration: .7});
+  else if (r.near) map.flyTo([r.lat, r.lng], Math.max(map.getZoom(), 14), {duration: .6});
   else map.flyTo([r.lat, r.lng], r.hasNumber ? 16 : 14, {duration: .7});
   previewMarker = L.marker([r.lat, r.lng], {icon: L.divIcon({className: '', html: '<div class="search-mk"></div>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14]}), zIndexOffset: 2000}).addTo(map);
   const div = document.createElement('div');
   div.innerHTML = `<div class="pp-title">${esc(r.name)}</div><div class="pp-sub">${esc(r.address && r.address !== r.name ? r.address : r.sub || '')}</div><button class="btn blue" data-pp="add"><i class="fa-solid fa-plus"></i>Add as a pin</button>${ui.step === 'route' ? '<button class="btn green" data-pp="addroute"><i class="fa-solid fa-route"></i>Add pin + add to route</button>' : ''}${ui.step !== 'pins' && trip().route.length >= 2 ? '<button class="btn yellow" data-pp="waypoint"><span class="wpb">W</span>Add as a waypoint</button>' : ''}<a class="btn ghost" href="${esc(gmapsUrl(r))}" target="_blank" rel="noopener" style="width:100%;margin-top:6px;text-decoration:none;color:var(--text)"><i class="fa-solid fa-arrow-up-right-from-square"></i>Open in Google Maps</a>`;
   div.addEventListener('click', ev => { const b = ev.target.closest('[data-pp]'); if (!b) return;
-    if (b.dataset.pp === 'waypoint') { addWaypointAt(L.latLng(r.lat, r.lng)); map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; return; }
+    if (b.dataset.pp === 'waypoint') { addWaypointAt(L.latLng(r.lat, r.lng)); map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; clearNear(); return; }
     addPinAt(L.latLng(r.lat, r.lng), {name: r.name, place: r.place, address: r.address, poi: r.poi, toRoute: b.dataset.pp === 'addroute'});
-    map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; });
+    map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; clearNear(); });
   previewMarker.bindPopup(div, {minWidth: 250, maxWidth: 300, autoPanPadding: [40, 90]});
   setTimeout(() => previewMarker && previewMarker.openPopup(), 750);
 }
@@ -1927,7 +1972,7 @@ async function deleteTrip(){
   const t = trip();
   if (!await askConfirm('Delete this trip?', `<b>“${esc(t.name)}”</b> and its ${t.pins.length} pins will be deleted from this browser.`, 'Delete trip', true)) return;
   const idx = db.trips.indexOf(t); db.trips.splice(idx, 1);
-  if (!db.trips.length) db.trips.push(newTrip('My first trip'));
+  if (!db.trips.length) db.trips.push(newTrip('New Map'));
   db.currentId = db.trips[0].id; ui.editorPinId = null; lastRouteSig = ''; scheduleSave(); render(); fitTrip();
   toast(`Deleted “${t.name}”`, {action: 'Undo', ms: 10000, onAction: () => { db.trips.splice(Math.min(idx, db.trips.length), 0, t); switchTrip(t.id); }});
 }
@@ -2249,10 +2294,10 @@ function showWelcome(){
 function showHelp(){
   modal({title: 'How to use Larson Family Maps', wide: true, html: `${stepsHtml()}
     <h3 style="margin:18px 0 6px">Bring in a trip from Google My Maps</h3>
-    <ol><li>On a computer, go to <b>google.com/maps/d</b> and open the map.</li><li>Click the <b>three dots ⋮</b> next to the map’s name.</li><li>Click <b>Export to KML/KMZ</b>.</li><li>Choose <b>Entire map</b>, then click <b>Download</b>.</li><li>Here, click <b>☰</b> (top right), then <b>Import a Google My Map</b>, and pick the file. You can also drag the file onto this page.</li></ol>
+    <ol><li>On a computer, go to <b>google.com/maps/d</b> and open the map.</li><li>Click the <b>three dots ⋮</b> next to the map’s name.</li><li>Click <b>Export to KML/KMZ</b>.</li><li>Choose <b>Entire map</b>, then click <b>Download</b>.</li><li>Here, click the folder button <b><i class="fa-solid fa-folder-open"></i></b> (top right), then <b>Import a Google My Map</b>, and pick the file. You can also drag the file onto this page.</li></ol>
     <h3 style="margin:18px 0 6px">Take the scenic road with waypoints</h3><p>In Step 2, press <b>Add waypoint</b>, then click a road you want to drive on. The route is forced through that spot, which shows as a small yellow <b>W</b>. Drag a W to move it, or click it to remove it. You can also search for a place and press <b>Add as a waypoint</b>.</p>
     <h3 style="margin:18px 0 6px">Measure a distance</h3><p>Click <b>Measure</b> on the map, then click two or more spots. You get the straight-line distance and the driving distance and time. Nothing is saved.</p>
-    <h3 style="margin:18px 0 6px">Where your trips are saved</h3><p>Trips save in <b>this browser on this device</b>. Use <b>☰ → Download a backup</b> now and then, and keep the file somewhere safe. Clearing your browser’s website data would erase trips that aren’t backed up.</p>`,
+    <h3 style="margin:18px 0 6px">Where your trips are saved</h3><p>Trips save in <b>this browser on this device</b>. Use the folder button <b><i class="fa-solid fa-folder-open"></i> → Download a backup</b> now and then, and keep the file somewhere safe. Clearing your browser’s website data would erase trips that aren’t backed up.</p>`,
     buttons: [{label: 'Got it', kind: 'blue'}]});
 }
 
