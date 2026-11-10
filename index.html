@@ -34,7 +34,7 @@ button{cursor:pointer}
 .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;white-space:nowrap}
 .brand .logo{height:50px;width:auto;display:block;margin:-6px 0}
 .trip-btn{display:flex;align-items:center;gap:8px;max-width:280px;min-height:44px;padding:8px 14px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);font-weight:700}
-.trip-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trip-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .trip-btn:hover{background:var(--panel3)}
 .steps{display:flex;gap:8px;margin:0 auto}
 .step{display:flex;align-items:center;gap:9px;min-height:46px;padding:8px 18px 8px 9px;border-radius:999px;border:2px solid var(--line);background:var(--panel2);font-weight:700;font-size:16px;white-space:nowrap;transition:background .15s,border-color .15s}
@@ -52,7 +52,7 @@ button{cursor:pointer}
 .save-status.ok i{color:var(--route)} .save-status.err{color:#fca5a5} .save-status.err i{color:var(--danger)}
 
 /* ---------- Main layout ---------- */
-main{display:grid;grid-template-columns:400px 1fr;min-height:0}
+main{display:grid;grid-template-columns:400px minmax(0,1fr);min-height:0}
 #panel{position:relative;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;z-index:500}
 .panel-body{flex:1;overflow-y:auto;padding:16px 16px 40px}
 #mapwrap{position:relative;min-height:0}
@@ -274,6 +274,12 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .leaflet-container a.leaflet-popup-close-button{color:var(--muted);font-size:22px;width:30px;height:30px}
 .search-mk{width:26px;height:26px;border-radius:50%;background:#fff;border:6px solid var(--pins);box-shadow:0 0 0 6px rgba(59,130,246,.35)}
 .leaflet-control-attribution{background:rgba(14,18,24,.75)!important;color:#9aa4b2!important}
+.addr-progress{position:absolute;left:12px;bottom:30px;z-index:900;display:flex;align-items:center;gap:11px;padding:10px 16px 10px 13px;border-radius:14px;background:rgba(17,22,30,.94);border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.45);color:var(--text);pointer-events:none;max-width:calc(100% - 90px)}
+.addr-progress[hidden]{display:none}
+body.addr-busy .toasts{bottom:100px}
+.addr-progress i{font-size:20px;color:var(--pins)}
+.addr-progress b{display:block;font-size:15px;white-space:nowrap}
+.addr-progress small{display:block;font-size:13px;color:var(--muted);white-space:nowrap}
 .leaflet-control-attribution a{color:#bcd2f5!important}
 .leaflet-bar a{background:var(--panel)!important;color:var(--text)!important;border-color:var(--line)!important;width:40px!important;height:40px!important;line-height:40px!important;font-size:20px!important}
 .leaflet-bar{border:1px solid var(--line)!important}
@@ -389,7 +395,7 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
   .steps{order:5;width:100%;margin:0}
   .step{flex:1;justify-content:center;padding:6px 8px;gap:6px;font-size:15px}
   .save-status .st{display:none}
-  main{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  main{grid-template-columns:minmax(0,1fr);grid-template-rows:1fr auto}
   #mapwrap{grid-row:1}
   #panel{grid-row:2;height:46dvh;border-right:none;border-top:1px solid var(--line);transition:height .2s}
   #panel.collapsed{height:58px}
@@ -435,6 +441,7 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
     </aside>
     <div id="mapwrap">
       <div id="map"></div>
+      <div class="addr-progress" id="addrProgress" hidden role="status" aria-live="polite"><i class="fa-solid fa-circle-notch fa-spin"></i><span><b>Adding Addresses to Pins</b><small id="addrProgressCount"></small></span></div>
       <div class="map-search" id="mapSearch">
         <div class="search-field">
           <i class="fa-solid fa-magnifying-glass"></i>
@@ -623,7 +630,7 @@ function change(label, fn, opts = {}){
   else if (opts.render !== false) render();
   else renderTop();
 }
-function replaceTrip(obj){ const i = db.trips.findIndex(t => t.id === db.currentId); db.trips[i] = normalizeTrip(obj); if (ui.editorPinId && !pinById(ui.editorPinId)) ui.editorPinId = null; scheduleSave(); render(); }
+function replaceTrip(obj){ const i = db.trips.findIndex(t => t.id === db.currentId); db.trips[i] = normalizeTrip(obj); reapplyLookups(db.trips[i]); if (ui.editorPinId && !pinById(ui.editorPinId)) ui.editorPinId = null; scheduleSave(); render(); }
 function undo(){ const h = H(); if (!h.undo.length) return; const e = h.undo.pop(); h.redo.push({label: e.label, snap: JSON.stringify(trip())}); coalesce = null; replaceTrip(JSON.parse(e.snap)); toast('Undid: ' + e.label); }
 function redo(){ const h = H(); if (!h.redo.length) return; const e = h.redo.pop(); h.undo.push({label: e.label, snap: JSON.stringify(trip())}); coalesce = null; replaceTrip(JSON.parse(e.snap)); toast('Redid: ' + e.label); }
 
@@ -873,11 +880,46 @@ const lastStyle = {color: DEFAULT_COLOR, icon: 'location-dot'};
 
 /* reverse geocoding (Nominatim, city level) – fills "City, ST" for pins */
 const placeQueue = []; let placeBusy = false; const placeTried = new Set();
-function fillPlace(id, force){ if (!force && placeTried.has(id)) return; placeTried.add(id); placeQueue.push(id); runPlaceQueue(); }
+function fillPlace(id, force, background){
+  if (!force && placeTried.has(id)) return; placeTried.add(id);
+  const k = placeQueue.indexOf(id); if (k >= 0) placeQueue.splice(k, 1);
+  // pins the person just dropped or moved jump ahead of a long import lookup
+  if (background) placeQueue.push(id); else placeQueue.unshift(id);
+  runPlaceQueue();
+}
+function anyPin(id){ for (const t of db.trips) { const p = t.pins.find(x => x.id === id); if (p) return p; } return null; }
+const lookupFound = new Map();   // results kept so an undo/redo during a lookup doesn't lose them
+function reapplyLookups(t){
+  for (const p of t.pins) { const f = lookupFound.get(p.id); if (!f || f.lat !== p.lat || f.lng !== p.lng) continue;
+    if (!p.place) p.place = f.place; p.addrTried = true; if (f.poi) p.poi = true; if (!p.address && f.address) p.address = f.address; }
+}
+function addrJobStep(id){
+  if (!addrJob || !addrJob.ids.has(id)) return;
+  addrJob.ids.delete(id); showAddrProgress();
+  if (addrJob.ids.size) return;
+  const j = addrJob; addrJob = null; showAddrProgress();
+  const miss = j.all.filter(x => { const pp = pinById(x); return pp && needsAddr(pp); });
+  toast(miss.length ? `Found street addresses for ${j.found} of ${j.total} imported places.` : j.found ? `Found street addresses for ${j.found} of ${j.total} imported places. Towns, parks and personal places have none; you can type one in any pin.` : `Done looking up addresses. None of these ${j.total} places had one to find (towns, parks and personal places don’t). You can type an address into any pin.`, {ms: 9000});
+  if (!miss.length) return;
+  const busy = () => document.querySelector('.modal-back') || ui.editorPinId || ui.mode || ui.sorting || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
+  setTimeout(() => { if (busy()) toast(`${miss.length} place${miss.length === 1 ? ' needs' : 's need'} an address.`, {action: 'Add them', ms: 15000, onAction: () => promptAddresses(miss)}); else promptAddresses(miss); }, 1500);
+}
+function showAddrProgress(){
+  const el = $('#addrProgress'); if (!el) return;
+  document.body.classList.toggle('addr-busy', !!addrJob);
+  if (!addrJob) { el.hidden = true; return; }
+  const done = addrJob.total - addrJob.ids.size, left = addrJob.ids.size;
+  const per = done >= 3 ? (Date.now() - addrJob.start) / 1000 / done : 2.2;   // seconds per place, measured once a few are done
+  const mins = Math.round(left * per / 60);
+  $('#addrProgressCount').textContent = `${done} of ${addrJob.total} done · ${mins < 1 ? 'less than a minute' : 'about ' + mins + ' min'} left`;
+  el.hidden = false;
+}
 async function runPlaceQueue(){
   if (placeBusy) return; placeBusy = true;
   while (placeQueue.length) {
-    const id = placeQueue.shift(); const t = trip(); const p = t.pins.find(x => x.id === id); if (!p) continue;
+    const id = placeQueue.shift(); const p = anyPin(id);
+    if (!p) { addrJobStep(id); continue; }   // deleted meanwhile
+    const at = {lat: p.lat, lng: p.lng};
     try {
       const r = await fetchJSON(`${NOMINATIM}/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1&accept-language=en`, 10000);
       if (!r.ok && r.status !== 404) throw new Error('reverse ' + r.status);
@@ -899,10 +941,11 @@ async function runPlaceQueue(){
           if (h) { const hp = h.properties; addr = fmtAddress(hp.housenumber, hp.street, place.city || hp.city, place.state || hp.state, hp.postcode || a.postcode, place.cc, place.country); } } catch (e) {}
       }
       if (!addr && a.road && p.autoName) addr = fmtAddress('', a.road, place.city, place.state, a.postcode, place.cc, place.country);
-      const q = trip().pins.find(x => x.id === id);
-      if (q) { q.place = place; q.addrTried = true; if (matched) q.poi = true; if (!q.address && addr) { q.address = addr; if (addrJob) addrJob.found++; } if (q.autoName && q.name === 'New pin' && placeShort(place)) q.name = placeShort(place); scheduleSave(); renderMap(); if (!ui.editorPinId || ui.editorPinId === id) renderPanelSoft(); }
+      const q = anyPin(id);
+      if (q && (q.lat !== at.lat || q.lng !== at.lng)) { /* moved while we looked: a fresh lookup is already queued */ }
+      else if (q) { lookupFound.set(id, {lat: at.lat, lng: at.lng, place, poi: matched, address: addr && !q.address ? addr : ''}); q.place = place; q.addrTried = true; if (matched) q.poi = true; if (!q.address && addr) { q.address = addr; if (addrJob && addrJob.ids.has(id)) addrJob.found++; } if (q.autoName && q.name === 'New pin' && placeShort(place)) q.name = placeShort(place); scheduleSave(); if (pinById(id)) { renderMap(); if (!ui.editorPinId || ui.editorPinId === id) renderPanelSoft(); } }
     } catch (e) { /* offline: leave blank, will retry later */ placeTried.delete(id); }
-    if (addrJob && addrJob.ids.has(id)) { addrJob.ids.delete(id); if (!addrJob.ids.size) { const j = addrJob; addrJob = null; const miss = [...j.all].filter(x => { const pp = pinById(x); return pp && needsAddr(pp); }); if (miss.length) setTimeout(() => { if (!document.querySelector('.modal-back')) promptAddresses(miss); }, 1500); toast(miss.length ? `Found street addresses for ${j.found} of ${j.total} imported places.` : j.found ? `Found street addresses for ${j.found} of ${j.total} imported places. Towns, parks and personal places have none; you can type one in any pin.` : `Done looking up addresses. None of these ${j.total} places had one to find (towns, parks and personal places don’t). You can type an address into any pin.`, {ms: 9000}); } }
+    addrJobStep(id);
     await sleep(1100);
   }
   placeBusy = false;
@@ -910,9 +953,11 @@ async function runPlaceQueue(){
 let addrJob = null;
 function lookupImported(pins){
   if (!pins.length) return;
-  addrJob = {total: pins.length, found: 0, ids: new Set(pins.map(p => p.id)), all: pins.map(p => p.id)};
-  pins.forEach(p => fillPlace(p.id, true));
-  toast(`Looking up addresses for ${pins.length} places in the background. This takes about ${Math.max(1, Math.round(pins.length * 1.6 / 60))} minute${pins.length * 1.6 > 90 ? 's' : ''}.`, {ms: 7000});
+  if (addrJob) { pins.forEach(p => { if (!addrJob.ids.has(p.id)) { addrJob.ids.add(p.id); addrJob.all.push(p.id); addrJob.total++; } }); }   // a second import while the first is still going
+  else addrJob = {total: pins.length, found: 0, ids: new Set(pins.map(p => p.id)), all: pins.map(p => p.id)};
+  addrJob.start = addrJob.start || Date.now();
+  pins.forEach(p => fillPlace(p.id, true, true));
+  showAddrProgress();
 }
 function normName(n){ return (n || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim(); }
 function samePlace(a, b){ return normName(a.name) && normName(a.name) === normName(b.name) && haversine(a, b) < 300; }
