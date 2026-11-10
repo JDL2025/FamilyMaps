@@ -260,6 +260,14 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .leaflet-bar{border:1px solid var(--line)!important}
 .measure-label{background:var(--measure);color:#2a2000;border:none;font-weight:700;font-size:13px;padding:3px 8px;border-radius:8px;box-shadow:none}
 .measure-label:before{display:none}
+.routepicking .leaflet-marker-icon{cursor:pointer}
+.review-card{margin-top:14px;border:2px solid rgba(251,191,36,.7);border-radius:14px;padding:12px;background:rgba(251,191,36,.07)}
+.review-card .sug-row .btn{min-height:38px;padding:6px 11px}
+.rp-card{border:2px solid var(--route);border-radius:14px;padding:14px;background:rgba(34,197,94,.06)}
+.rp-card h3{margin:2px 0 0;font-size:19px}
+.rp-step{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#86efac}
+.rp-list{border:1px solid var(--line);border-radius:12px;overflow:hidden;max-height:42vh;overflow-y:auto}
+.rp-list .pin-row:first-child{border-top:none}
 .pins-step .leaflet-container,.measuring .leaflet-container,.waypointing .leaflet-container{cursor:crosshair}
 .wp-mk{width:26px;height:26px;border-radius:50%;background:#facc15;border:2px solid #2a2000;color:#2a2000;font:800 14px/22px var(--font);text-align:center;box-shadow:0 2px 7px rgba(0,0,0,.55);cursor:grab}
 .wpb{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#facc15;color:#2a2000;font:800 12px/1 var(--font);border:2px solid #2a2000;flex:none}
@@ -603,7 +611,7 @@ function redo(){ const h = H(); if (!h.redo.length) return; const e = h.redo.pop
 /* =========================================================
    UI STATE
    ========================================================= */
-const ui = {moreIcons: false, sugs: [], sugBusy: false, stayPick: false, scrollToStay: false, step: 'pins', mode: null, editorPinId: null, selectedPinId: null, filter: '', collapsed: new Set(), sorting: false, panelDirty: false};
+const ui = {review: null, maxChanged: false, rp: null, moreIcons: false, sugs: [], sugBusy: false, stayPick: false, scrollToStay: false, step: 'pins', mode: null, editorPinId: null, selectedPinId: null, filter: '', collapsed: new Set(), sorting: false, panelDirty: false};
 
 /* ---------- toasts ---------- */
 function toast(msg, o = {}){
@@ -824,6 +832,7 @@ map.on('dblclick', () => clearTimeout(clickTimer));
 function onPinClick(id){
   const p = pinById(id); if (!p) return;
   if (ui.mode === 'measure') { addMeasurePoint(L.latLng(p.lat, p.lng)); return; }
+  if (ui.mode === 'routepick') { rpPick(id); return; }
   if (ui.mode === 'waypoint') { toast('Waypoints go on roads between stops. To visit this pin, add it to the route as a stop.'); return; }
   if (ui.step === 'route') { addToRoute(id); return; }
   openEditor(id, false);
@@ -1125,6 +1134,66 @@ function addAllPins(){
   fitRoute();
   undoToast(`Added ${order.length} stop${order.length === 1 ? '' : 's'}. Try “Suggest order” next.`);
 }
+/* shortest order through points (straight-line): first fixed; last fixed when fixedEnd */
+function shortestOrder(pts, fixedEnd){
+  const n = pts.length; if (n < 3) return [...Array(n).keys()];
+  const D = []; for (let i = 0; i < n; i++) { D.push(new Float64Array(n)); for (let j = 0; j < n; j++) D[i][j] = i === j ? 0 : haversine(pts[i], pts[j]); }
+  const rest = [...Array(n).keys()].slice(1, fixedEnd ? n - 1 : n); const path = [0]; let cur = 0;
+  while (rest.length) { let bi = 0; rest.forEach((x, i) => { if (D[cur][x] < D[cur][rest[bi]]) bi = i; }); cur = rest.splice(bi, 1)[0]; path.push(cur); }
+  if (fixedEnd) path.push(n - 1);
+  const m = path.length; const last = fixedEnd ? m - 2 : m - 1;
+  let improved = true, passes = 0;
+  while (improved && passes++ < 80) { improved = false;
+    for (let i = 1; i < last; i++) for (let k = i + 1; k <= last; k++) {
+      const after = k + 1 < m ? D[path[i - 1]][path[k]] + D[path[i]][path[k + 1]] - D[path[i - 1]][path[i]] - D[path[k]][path[k + 1]] : D[path[i - 1]][path[k]] - D[path[i - 1]][path[i]];
+      if (after < -1e-6) { path.splice(i, k - i + 1, ...path.slice(i, k + 1).reverse()); improved = true; }
+    } }
+  return path;
+}
+function routePins(){ const t = trip(); const vis = new Set(t.layers.filter(l => l.visible).map(l => l.id)); return t.pins.filter(p => vis.has(p.layerId)); }
+async function startRouteBuild(){
+  const t = trip(); const pins = routePins();
+  if (pins.length < 2) { toast('You need at least 2 pins showing on the map.'); return; }
+  if (t.route.length) {
+    const inRoute = new Set(t.route.map(s => s.pinId)); const left = pins.filter(p => !inRoute.has(p.id)).length;
+    const v = await modal({title: 'You already have a route', html: `<p>Do you want to build a new route from all ${pins.length} pins, or keep your route and add the ${left} pin${left === 1 ? '' : 's'} that aren’t in it yet?</p>`,
+      buttons: [{label: 'Cancel', value: null}, {label: 'Add to the end', kind: 'ghost', value: 'add'}, {label: '<i class="fa-solid fa-rotate"></i> Start over', kind: 'green', value: 'new'}]});
+    if (v === 'add') { if (!left) toast('Every pin is already in the route.'); else addAllPins(); return; }
+    if (v !== 'new') return;
+  }
+  ui.rp = {stage: 'start', start: null}; setMode('routepick');
+}
+function rpPick(id){
+  const p = pinById(id); if (!p || !ui.rp) return;
+  if (ui.rp.stage === 'start') { ui.rp = {stage: 'end', start: id}; ui.selectedPinId = id; render(); setTimeout(() => popPin(id), 30); return; }
+  if (id === ui.rp.start) { buildRoute('round'); return; }
+  buildRoute(id);
+}
+function buildRoute(end){
+  const startId = ui.rp && ui.rp.start; const start = pinById(startId); if (!start) return;
+  const pins = routePins();
+  let middle = pins.filter(p => p.id !== startId && p.id !== end);
+  let pts, fixed;
+  if (end === 'round') { pts = [start, ...middle, start]; fixed = true; }
+  else if (end === 'auto') { pts = [start, ...middle]; fixed = false; }
+  else { const e = pinById(end); pts = [start, ...middle, e]; fixed = true; }
+  const order = shortestOrder(pts, fixed).map(i => pts[i]);
+  ui.rp = null; ui.mode = null; document.body.classList.remove('routepicking');
+  change('Create route', t => { t.route = order.map(p => ({sid: uid(), pinId: p.id, overnight: false, nights: 1})); });
+  fitRoute();
+  undoToast(`Route made with ${order.length} stops${end === 'round' ? ', ending back at the start' : ''}. Drag stops to fine-tune it.`);
+}
+function routePickHtml(){
+  const t = trip(); const rp = ui.rp; const pins = routePins();
+  const list = ex => `<div class="rp-list">${pins.filter(p => p.id !== ex).map(p => `<button class="pin-row" data-act="rp-pick" data-id="${p.id}"><span class="dot" style="--c:${p.color};--fg:${fgFor(p.color)}"><i class="fa-solid fa-${p.icon}"></i></span><span class="txt"><b>${esc(p.name)}</b>${p.address || pinLabel(p) ? `<small>${esc(p.address || pinLabel(p))}</small>` : ''}</span></button>`).join('')}</div>`;
+  if (rp.stage === 'start') return `<div class="rp-card"><div class="rp-step">Step 1 of 2</div><h3>Where does the trip start?</h3><p class="hint" style="margin:4px 0 10px">${TAP} the starting pin on the map, or choose it here.</p>${list(null)}<button class="btn ghost" style="width:100%;margin-top:10px" data-act="rp-cancel">Cancel</button></div>`;
+  const s = pinById(rp.start);
+  return `<div class="rp-card"><div class="rp-step">Step 2 of 2</div><h3>Where does the trip end?</h3><p class="hint" style="margin:4px 0 10px">Starting at <b style="color:var(--text)">${esc(s ? s.name : '')}</b>.</p>
+    <div style="display:grid;gap:8px"><button class="btn green" data-act="rp-end" data-e="round"><i class="fa-solid fa-arrows-rotate"></i>Back to the start (round trip)</button>
+    <button class="btn ghost" data-act="rp-end" data-e="auto"><i class="fa-solid fa-wand-magic-sparkles"></i>Wherever makes sense</button></div>
+    <p class="hint" style="margin:14px 0 8px"><b style="color:var(--text)">Or pick the ending pin:</b> ${TAP.toLowerCase()} it on the map, or choose it here.</p>${list(rp.start)}
+    <div class="btn-row" style="margin-top:10px"><button class="btn ghost" style="flex:1" data-act="rp-back"><i class="fa-solid fa-arrow-left"></i>Back</button><button class="btn ghost" style="flex:1" data-act="rp-cancel">Cancel</button></div></div>`;
+}
 function suggestOrder(){
   const t = trip(); const n = t.route.length;
   if (n < 4) { toast('Add at least 4 stops first. The first and last stops stay where they are.'); return; }
@@ -1173,11 +1242,72 @@ function lodgingTotals(t){
 }
 function stopTitle(t, i){ const p = pinById(t.route[i].pinId); return p ? p.name : '?'; }
 function stopTown(t, i){ const p = pinById(t.route[i].pinId); if (!p) return '?'; return pinPlace(p) || p.name; }
+function sugStopEdited(p){ return !!(p && (p.stay || p.notes.trim() || p.links.length || (p.fromSug && p.name !== p.fromSug))); }
+/* Before re-splitting: find stops that were added from ? suggestions but aren't needed at the new limit. */
+function findUnneededStops(t, st){
+  const max = t.maxDayHours * 3600; const out = []; const n = t.route.length;
+  let a = 0;
+  for (let b = 1; b < n; b++) {
+    if (t.route[b].sugFrac != null && b < n - 1) continue;
+    const between = []; for (let i = a + 1; i < b; i++) between.push(i);
+    if (between.length) {
+      let T = 0, ok = true; const at = [];
+      for (let i = a; i < b; i++) { const x = st.legs[i] && st.legs[i].info; if (!x || x.status !== 'ok') { ok = false; break; } T += x.t; if (i + 1 < b) at.push(T); }
+      if (ok) {
+        const k = T > max * 1.1 ? Math.ceil(T / max) - 1 : 0;
+        if (between.length > k) {
+          const keep = new Set(); const fr = at.map(x => x / T);
+          for (let j = 1; j <= k; j++) { let best = -1; fr.forEach((f, q) => { if (!keep.has(q) && (best < 0 || Math.abs(f - j / (k + 1)) < Math.abs(fr[best] - j / (k + 1)))) best = q; }); if (best >= 0) keep.add(best); }
+          between.forEach((i, q) => { if (!keep.has(q)) { const p = pinById(t.route[i].pinId); out.push({sid: t.route[i].sid, pinId: p.id, name: p.name, edited: sugStopEdited(p), from: pinById(t.route[a].pinId)?.name, to: pinById(t.route[b].pinId)?.name}); } });
+        }
+      }
+    }
+    a = b;
+  }
+  return out;
+}
 function suggestDays(){
   const t = trip(); const st = routeStats(t);
   if (t.route.length < 2) { toast('Make a route with at least 2 stops first (Step 2).'); return; }
   if (st.pending) { toast('Still loading some driving times. Try again in a few seconds.'); return; }
   if (ui.sugBusy) return;
+  ui.maxChanged = false;
+  const extra = findUnneededStops(t, st);
+  if (extra.length) { ui.review = {trip: t.id, max: t.maxDayHours, items: extra}; renderPanel(); $('#panelBody').scrollTop = 0; return; }
+  runSmartSplit();
+}
+function finishReview(){
+  ui.review = null; renderPanel();
+  let tries = 0; const go = () => { const st = routeStats(trip()); if (st.pending && tries++ < 30) { setTimeout(go, 700); return; } runSmartSplit(); };   // wait for the drives that changed
+  setTimeout(go, 100);
+}
+function reviewDecide(sid, keep){
+  const r = ui.review; if (!r) return; const it = r.items.find(x => x.sid === sid); if (!it) return;
+  r.items = r.items.filter(x => x !== it);
+  if (!keep) removeSugStops([it]);
+  if (!r.items.length) finishReview(); else renderPanel();
+}
+function removeSugStops(items){
+  change(items.length > 1 ? 'Remove extra stops' : 'Remove extra stop', t => {
+    const sids = new Set(items.map(x => x.sid)); const dropPins = new Set(items.filter(x => !x.edited).map(x => x.pinId));
+    t.route = t.route.filter(s => !sids.has(s.sid));
+    t.pins = t.pins.filter(p => !dropPins.has(p.id) || t.route.some(s => s.pinId === p.id));
+  });
+  undoToast(items.length > 1 ? `Removed ${items.length} stops` : `Removed ${items[0].name}`);
+}
+function reviewHtml(){
+  const r = ui.review; if (!r || r.trip !== trip().id) return '';
+  return `<div class="review-card"><div class="sug-title" style="color:#fbbf24"><i class="fa-solid fa-scale-balanced"></i>Stops you may not need now</div>
+    <p class="hint" style="margin:6px 0 8px">With your new limit of <b style="color:var(--text)">${r.max} hours</b>, these overnight stops added from earlier suggestions may no longer be needed. Keep or remove each one.</p>
+    ${r.items.map(it => `<div class="sug-row"><span class="q" style="border-style:solid"><i class="fa-solid fa-bed" style="font-size:12px"></i></span><span class="txt" data-act="focus-pin" data-id="${it.pinId}"><b>${esc(it.name)}</b><small>between ${esc(it.from || '?')} and ${esc(it.to || '?')}${it.edited ? ' · <span style="color:#d8b4fe">has your details</span>' : ''}</small></span><button class="btn sm ghost" data-act="rev-keep" data-sid="${it.sid}">Keep</button><button class="btn sm red" data-act="rev-remove" data-sid="${it.sid}">Remove</button></div>`).join('')}
+    ${r.items.length > 1 ? `<button class="btn red" style="width:100%;margin-top:8px" data-act="rev-remove-all"><i class="fa-solid fa-trash-can"></i>Remove all ${r.items.length}</button>` : ''}
+    <button class="btn amber" style="width:100%;margin-top:8px" data-act="rev-done">Done, plan the segments<i class="fa-solid fa-arrow-right"></i></button>
+    <p class="hint" style="font-size:13px;margin-bottom:0">Stops with your hotel details, notes or a new name are only taken out of the route. Their pins stay on the map.</p></div>`;
+}
+function runSmartSplit(){
+  const t = trip(); const st = routeStats(t);
+  if (t.route.length < 2 || ui.sugBusy) return;
+  if (st.pending) { toast('Still loading some driving times. Try again in a few seconds.'); return; }
   const max = t.maxDayHours * 3600; const nights = new Set(); const longLegs = []; let acc = 0;
   st.legs.forEach((l, i) => {
     if (!l.info || l.info.status !== 'ok') { acc = 0; return; }
@@ -1240,7 +1370,7 @@ function addSuggestions(ids){
   change(list.length > 1 ? 'Add overnight stops' : 'Add overnight stop', t => {
     for (const s of list) {
       const pid = uid();
-      t.pins.push({id: pid, name: s.name, lat: +s.lat.toFixed(6), lng: +s.lng.toFixed(6), color: '#fb8c00', icon: 'bed', notes: '', links: [], layerId: t.activeLayerId, place: s.place, stay: null});
+      t.pins.push({id: pid, name: s.name, lat: +s.lat.toFixed(6), lng: +s.lng.toFixed(6), color: '#fb8c00', icon: 'bed', notes: '', links: [], layerId: t.activeLayerId, place: s.place, stay: null, fromSug: s.name, sugMax: t.maxDayHours});
       const a = t.route.findIndex(x => x.sid === s.from), b = t.route.findIndex(x => x.sid === s.to); if (a < 0 || b < 0) continue;
       let pos = b; for (let i = a + 1; i < b; i++) if (t.route[i].sugFrac > s.frac) { pos = i; break; }
       t.route.splice(pos, 0, {sid: uid(), pinId: pid, overnight: true, nights: 1, sugFrac: s.frac});
@@ -1349,12 +1479,12 @@ function routeView(){
   const t = trip(); const n = t.route.length;
   if (!t.pins.length) return `<div class="empty"><i class="fa-solid fa-route big"></i><b>Step 2: Connect the dots</b>You need some pins first.</div><button class="btn big blue" data-act="go" data-step="pins"><i class="fa-solid fa-arrow-left"></i>Go to Step 1: Pins</button>`;
   const st = routeStats(t);
+  if (ui.mode === 'routepick' && ui.rp) return routePickHtml();
   let html = '';
   if (n) html += totalsHtml(st, n);
-  const inRoute = new Set(t.route.map(s => s.pinId)); const notIn = t.pins.filter(p => !inRoute.has(p.id)).length;
   html += `<p class="hint">${n ? 'Drag your pins (<i class="fa-solid fa-grip-lines"></i>) to create your route.' : `<b style="color:var(--text)">Build your route.</b> ${TAP} your pins in the order you want to visit them. Or, choose an option from below.`}</p>`;
   html += `<div class="btn-grid">
-    <button class="btn sm ghost" data-act="add-all" ${notIn ? '' : 'disabled'}><i class="fa-solid fa-circle-plus"></i>Add all pins${notIn ? ` (${notIn})` : ''}</button>
+    <button class="btn sm ghost" data-act="add-all" ${t.pins.length >= 2 ? '' : 'disabled'}><i class="fa-solid fa-circle-plus"></i>Create route from all pins</button>
     <button class="btn sm ghost" data-act="suggest" ${n >= 4 ? '' : 'disabled'} title="Reorders the stops between the first and last to make the drive shorter"><i class="fa-solid fa-wand-magic-sparkles"></i>Suggest order</button>
     <button class="btn sm ghost" data-act="reverse" ${n >= 2 ? '' : 'disabled'}><i class="fa-solid fa-arrow-right-arrow-left"></i>Reverse</button>
     <button class="btn sm ghost" data-act="clear-route" ${n ? '' : 'disabled'}><i class="fa-solid fa-trash-can"></i>Clear route</button></div>
@@ -1413,8 +1543,9 @@ function daysView(){
     html += `<div class="guide"><p class="hint" style="margin:0 0 10px">Smart Segments plans the segments for you, so no segment has more driving than the limit you pick. If one drive is longer than that, it suggests towns along the way, shown on the map with a <b style="color:#fbbf24">?</b>. You can change anything afterward.</p>
       <label class="label" style="margin-top:0">Most driving you want in one segment</label>
       <div class="row-inline"><select class="input" id="maxHours" style="width:auto;flex:1">${[3,4,5,6,7,8,9,10,11,12].map(h => `<option value="${h}" ${h === t.maxDayHours ? 'selected' : ''}>${h} hours</option>`).join('')}</select>
-      <button class="btn amber" data-act="suggest-days" style="flex:1.3" ${ui.sugBusy ? 'disabled' : ''}><i class="fa-solid fa-wand-magic-sparkles"></i>Create Smart Segments</button></div></div>`;
+      <button class="btn amber" data-act="suggest-days" style="flex:1.3" ${ui.sugBusy ? 'disabled' : ''}><i class="fa-solid fa-wand-magic-sparkles"></i>Create Smart Segments</button></div>${ui.maxChanged ? '<p class="hint" style="margin:10px 0 0;color:#fbbf24"><i class="fa-solid fa-circle-info"></i> Press <b>Create Smart Segments</b> to update your stops for the new limit.</p>' : ''}</div>`;
   }
+  html += reviewHtml();
   html += suggestionsHtml();
   days.forEach((d, di) => {
     const col = dayColor(d.seg); const dateTxt = d.date ? ' · ' + d.date.toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric'}) : '';
@@ -1635,7 +1766,11 @@ document.addEventListener('click', async e => {
     case 'editor-add-route': addToRoute(ui.editorPinId); break;
     case 'remove-from-route': { const pid = ui.editorPinId; change('Remove stop', t => { t.route = t.route.filter(s => s.pinId !== pid); }); undoToast('Removed from the route'); break; }
     case 'go': e.preventDefault(); setStep(el.dataset.step); break;
-    case 'add-all': addAllPins(); break;
+    case 'add-all': startRouteBuild(); break;
+    case 'rp-pick': rpPick(id); break;
+    case 'rp-end': buildRoute(el.dataset.e); break;
+    case 'rp-back': ui.rp = {stage: 'start', start: null}; render(); break;
+    case 'rp-cancel': ui.rp = null; setMode(null); break;
     case 'suggest': suggestOrder(); break;
     case 'reverse': reverseRoute(); break;
     case 'clear-route': clearRoute(); break;
@@ -1647,6 +1782,10 @@ document.addEventListener('click', async e => {
     case 'edit-stay': openEditor(id, false); ui.scrollToStay = true; if (!pinById(id).stay) ui.stayPick = true; renderEditor(); break;
     case 'zoom-day': { const st = routeStats(t); const d = computeDays(t, st)[+el.dataset.i]; if (!d) break; const pts = d.idx.map(i => pinById(t.route[i].pinId)).filter(Boolean).map(p => [p.lat, p.lng]); for (let j = d.idx[0]; j < d.idx[d.idx.length - 1]; j++) { const l = st.legs[j]; if (l && l.info && l.info.segs) l.info.segs.forEach(s => s.c.forEach(c => pts.push(c))); } if (pts.length === 1) map.setView(pts[0], 11); else if (pts.length) map.fitBounds(pts, {padding: [60, 60], maxZoom: 12}); break; }
     case 'add-sug': addSuggestions([id]); break;
+    case 'rev-keep': reviewDecide(el.dataset.sid, true); break;
+    case 'rev-remove': reviewDecide(el.dataset.sid, false); break;
+    case 'rev-remove-all': { const items = ui.review ? ui.review.items : []; if (items.length) removeSugStops(items); finishReview(); break; }
+    case 'rev-done': finishReview(); break;
     case 'add-all-sugs': addSuggestions(liveSugs().map(s => s.id)); break;
     case 'dismiss-sug': dismissSug(id); break;
     case 'focus-sug': { const s = liveSugs().find(x => x.id === id); if (s) { map.flyTo([s.lat, s.lng], Math.max(map.getZoom(), 8), {duration: .6}); setTimeout(() => sugLayer.eachLayer(m => { const ll = m.getLatLng(); if (ll.lat === s.lat && ll.lng === s.lng) m.openPopup(); }), 700); } break; }
@@ -1677,7 +1816,7 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'edLayer') change('Move to layer', tr => { pinById(ui.editorPinId).layerId = t.value; const l = tr.layers.find(x => x.id === t.value); if (l) l.visible = true; });
   else if (t.id === 'startDate') change('Set start date', tr => { tr.startDate = t.value || ''; });
-  else if (t.id === 'maxHours') change('Set daily driving', tr => { tr.maxDayHours = +t.value; });
+  else if (t.id === 'maxHours') { ui.maxChanged = trip().route.length >= 2; change('Set daily driving', tr => { tr.maxDayHours = +t.value; }); }
   else if (t.dataset && t.dataset.stayCheck) { const k = t.dataset.stayCheck, v = t.checked; change('Edit stay details', tr => { const p = pinById(ui.editorPinId); if (p && p.stay) p.stay[k] = v; }, {render: false}); }
   else if (t.dataset && t.dataset.stayAmen) { const k = t.dataset.stayAmen, v = t.checked; change('Edit stay details', tr => { const p = pinById(ui.editorPinId); if (p && p.stay) p.stay.amen[k] = v; }, {render: false}); }
 });
@@ -1714,7 +1853,7 @@ function colorLayer(id){
 /* ---------- steps & modes ---------- */
 function setStep(s){
   if (ui.editorPinId) { ui.editorPinId = null; $('#editor').hidden = true; }
-  if (ui.mode === 'waypoint' || ui.mode === 'add') ui.mode = null;
+  if (ui.mode === 'waypoint' || ui.mode === 'add' || ui.mode === 'routepick') { ui.mode = null; ui.rp = null; document.body.classList.remove('routepicking'); }
   document.body.classList.remove('waypointing');
   ui.step = s; prefs.step = s; savePrefs();
   render();
@@ -1731,12 +1870,15 @@ function setMode(m){
   $('#measureBtn').classList.toggle('on', m === 'measure');
   $('#measureCard').hidden = m !== 'measure';
   if (m === 'measure') renderMeasure();
-  if (m && innerWidth <= 820) { $('#panel').classList.add('collapsed'); updateHandle(); setTimeout(() => map.invalidateSize(), 220); }
+  if (m !== 'routepick') ui.rp = null;
+  document.body.classList.toggle('routepicking', m === 'routepick');
+  if (m && m !== 'routepick' && innerWidth <= 820) { $('#panel').classList.add('collapsed'); updateHandle(); setTimeout(() => map.invalidateSize(), 220); }
   render();
 }
 function renderBanner(){
   const b = $('#banner'); const t = trip();
-  if (ui.mode === 'waypoint') { b.className = 'banner waypoint'; b.hidden = false; b.innerHTML = `<span class="wpb">W</span><span>${TAP} the map where the route should go</span><button class="btn sm" data-act="wp-mode"><i class="fa-solid fa-check"></i>Done</button>`; }
+  if (ui.mode === 'routepick' && ui.rp) { b.className = 'banner route'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-hand-pointer"></i><span>${ui.rp.stage === 'start' ? `${TAP} the pin where your trip starts` : `${TAP} the pin where your trip ends, or choose an option in the panel`}</span><button class="btn sm" data-act="rp-cancel">Cancel</button>`; }
+  else if (ui.mode === 'waypoint') { b.className = 'banner waypoint'; b.hidden = false; b.innerHTML = `<span class="wpb">W</span><span>${TAP} the map where the route should go</span><button class="btn sm" data-act="wp-mode"><i class="fa-solid fa-check"></i>Done</button>`; }
   else if (ui.mode === 'measure') { b.className = 'banner measure'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-ruler"></i><span>${TAP} two or more spots to measure</span><button class="btn sm" id="bannerMeasureDone">Done</button>`; $('#bannerMeasureDone').onclick = () => setMode(null); }
   else if (ui.step === 'route' && t.pins.length && t.route.length < 2 && !ui.editorPinId) { b.className = 'banner route'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-route"></i><span>${TAP} pins in the order you’ll visit them</span>`; }
   else b.hidden = true;
