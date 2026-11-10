@@ -326,6 +326,11 @@ body.addr-busy .toasts{bottom:100px}
 .modal p{color:var(--muted);margin:8px 0}
 .modal ol{padding-left:22px;margin:8px 0;color:var(--muted)} .modal ol li{margin:7px 0}
 .modal ol b{color:var(--text)}
+.fmt-choices{display:grid;gap:10px;margin-top:14px}
+.fmt{display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--text);text-align:left}
+.fmt:hover,.fmt:focus-visible{border-color:var(--doc);background:var(--panel3)}
+.fmt i{font-size:30px;flex:none;width:34px;text-align:center}
+.fmt b{display:block;font-size:17px}.fmt small{display:block;color:var(--muted);font-size:14px;margin-top:2px}
 .modal .btn-row{margin-top:20px;justify-content:flex-end;position:sticky;bottom:-22px;background:var(--panel);padding:12px 0 22px;margin-bottom:-22px;z-index:2}
 .welcome-steps{display:grid;gap:10px;margin:14px 0}
 .welcome-steps div{display:flex;gap:12px;align-items:flex-start;background:var(--panel2);border-radius:12px;padding:12px}
@@ -493,6 +498,7 @@ const PHOTON = 'https://photon.komoot.io';
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
 const DOCX_URL  = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js';
 const JSZIP_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+const JSPDF_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 
 const COLORS = [
   ['#e53935','Red'],['#fb8c00','Orange'],['#fdd835','Yellow'],['#7cb342','Lime'],['#2e9d4f','Green'],['#00897b','Teal'],
@@ -557,9 +563,9 @@ function hrs(s){ const m = Math.round(s/60); if (m < 60) return m + ' min'; cons
 function hrsWord(s){ const m = Math.round(s/60); if (m < 60) return m + ' minutes'; const h = Math.floor(m/60), r = m % 60; return `${h} hour${h===1?'':'s'}` + (r ? ` ${r} minute${r===1?'':'s'}` : ''); }
 function normUrl(u){ u = String(u||'').trim(); if (!u) return null; if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u; try { const x = new URL(u); if (!/^https?:$/.test(x.protocol)) return null; if (!x.hostname.includes('.')) return null; return x.href; } catch { return null; } }
 function linkLabel(u){ try { const x = new URL(u); let p = (x.hostname.replace(/^www\./,'') + x.pathname).replace(/\/$/,''); return p.length > 48 ? p.slice(0,46) + '…' : p; } catch { return u; } }
-function loadScript(src){ return new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`) && (src !== DOCX_URL || window.docx) && (src !== JSZIP_URL || window.JSZip)) return res(); const s = document.createElement('script'); s.src = src; s.onload = () => res(); s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); }); }
+function loadScript(src){ return new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`) && (src !== DOCX_URL || window.docx) && (src !== JSZIP_URL || window.JSZip) && (src !== JSPDF_URL || window.jspdf)) return res(); const s = document.createElement('script'); s.src = src; s.onload = () => res(); s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); }); }
 function download(blob, name){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 3000); }
-function safeName(s){ return String(s||'trip').replace(/[\\/:*?"<>|]+/g,'').trim().slice(0,80) || 'trip'; }
+function safeName(s){ return String(s||'trip').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\u2014\u2013]/g, '-').replace(/[\u2018\u2019]/g, "'").replace(/[\\/:*?"<>|\u201c\u201d~\u0000-\u001f]+/g,'').replace(/\s+/g, ' ').trim().slice(0,80) || 'trip'; }
 async function fetchJSON(url, ms = 15000){ const c = new AbortController(); const t = setTimeout(() => c.abort(), ms); try { const r = await fetch(url, {signal: c.signal}); const j = await r.json().catch(() => null); return {ok: r.ok, status: r.status, json: j}; } finally { clearTimeout(t); } }
 
 /* =========================================================
@@ -1818,7 +1824,7 @@ function daysView(){
   });
   html += `<div style="display:grid;gap:8px;margin-top:18px"><button class="btn big purple" data-act="make-doc"><i class="fa-solid fa-file-export"></i>Export trip itinerary</button>
     <button class="btn ghost" data-act="copy-text"><i class="fa-solid fa-copy"></i>Copy itinerary as text</button></div>
-    <p class="hint" style="font-size:13px">The exported itinerary is a Word file with a map for each segment and all your stay details. It opens in Microsoft Word, Pages and Google Docs.</p>`;
+    <p class="hint" style="font-size:13px">Download the itinerary as a Word document or a PDF, with a map for each segment and all your stay details.</p>`;
   return html;
 }
 function stayChip(p, offerAdd){
@@ -2505,7 +2511,7 @@ async function restoreBackup(data){
 }
 
 /* =========================================================
-   EXPORTED TRIP ITINERARY  (Word document + plain text)
+   EXPORTED TRIP ITINERARY  (Word document, PDF and plain text)
    ========================================================= */
 function planData(){
   const t = trip(); const st = routeStats(t); const days = computeDays(t, st);
@@ -2558,86 +2564,204 @@ async function dayMapImage(t, st, d){
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
   return blob ? {data: await blob.arrayBuffer(), w: W, h: H} : null;
 }
+/* The itinerary is built once as simple blocks, then written out as a Word document or a PDF.
+   Block: {k:'title'|'p'|'img', runs:[{t, b, i, c, link, size}], h1, bullet, indent, bar, before, after}  (spacing in points) */
+async function itineraryBlocks(t, st, days){
+  const B = [];
+  const R = (text, o = {}) => Object.assign({t: String(text)}, o);
+  const P = (runs, o = {}) => B.push(Object.assign({k: 'p', runs: (Array.isArray(runs) ? runs : [runs]).map(r => typeof r === 'string' ? R(r) : r)}, o));
+  B.push({k: 'title', text: t.name});
+  const range = days[0].date ? `${days[0].date.toLocaleDateString(undefined, {month: 'long', day: 'numeric'})} – ${days[days.length - 1].date.toLocaleDateString(undefined, {month: 'long', day: 'numeric', year: 'numeric'})}` : '';
+  P(R([range, `${days.length} segment${days.length === 1 ? '' : 's'}`, `${t.route.length} stops`, milesWord(st.d), `about ${hrsWord(st.s)} of driving`].filter(Boolean).join('  ·  '), {c: '555555'}), {after: 6});
+  const lodging = lodgingTotals(t); if (lodging) P([R('Lodging: ', {b: 1, c: '6D28D9'}), R(lodging, {c: '6D28D9'})], {after: 15});
+  if (st.errors) P(R(`Note: ${st.errors} drive${st.errors === 1 ? '' : 's'} couldn’t be found and ${st.errors === 1 ? 'is' : 'are'} not included in the totals.`, {i: 1, c: 'B00020'}));
+  const shown = new Set();
+  const addStay = async (p, stop) => {
+    const s = p.stay; const sh = stayShows(s); shown.add(p.id);
+    const nights = stop && stop.overnight ? ` · ${stop.nights} night${stop.nights === 1 ? '' : 's'}` : '';
+    const line = runs => P(runs, {indent: 1, bar: 1});
+    P([R('Where we’re staying: ', {b: 1, c: '6D28D9'}), R(p.name, {b: 1}), R(`  (${stayLabel(s)}${nights})`, {c: '666666'})], {indent: 1, bar: 1, before: 7});
+    const rows = [];
+    if (sh.site) rows.push(['Site number', s.site]);
+    if (sh.phone) rows.push(['Phone', s.phone]);
+    if (sh.times) rows.push(['Check-in', s.checkin], ['Check-out', s.checkout]);
+    if (sh.conf) rows.push(['Confirmation #', s.conf]);
+    if (sh.money) rows.push(['Already paid', money(s.paid)], ['Due when we arrive', money(s.due)]);
+    rows.forEach(([k, v]) => { if (String(v || '').trim()) line([R(k + ': ', {b: 1}), R(v)]); });
+    if (sh.perks && (s.reward || s.points)) line([R('Booked as: ', {b: 1}), R([s.reward && 'Loyalty / reward night', s.points && 'Paid with points'].filter(Boolean).join(' · '))]);
+    if (sh.amen) { const has = stayAmenList(s); const no = AMENITIES.filter(([k]) => !s.amen[k]).map(([, l]) => l.toLowerCase()); if (has.length) line([R('Has: ', {b: 1}), R(has.join(', '))]); if (has.length && no.length) line([R('Not listed: ', {b: 1, c: '888888'}), R(no.join(', '), {c: '888888'})]); }
+    if (s.notes.trim()) { line([R(stayNotesLabel(s) + ':', {b: 1})]); s.notes.split('\n').filter(x => x.trim()).forEach(l => line([R(l)])); }
+    for (const ph of s.photos) {
+      try { const b = await PhotoDB.get(ph.id); if (!b) continue; const w0 = ph.w || 800, h0 = ph.h || 600; const sc = Math.min(1, 430 / w0, 520 / h0);
+        B.push({k: 'img', data: await b.arrayBuffer(), mime: b.type, w: Math.round(w0 * sc), h: Math.round(h0 * sc), indent: 1, bar: 1, before: 4}); } catch (e) { console.error(e); }
+    }
+  };
+  for (const d of days) {
+    const colHex = dayColor(d.seg, true).slice(1);
+    if (d.kind === 'layover') {
+      const p = pinById(t.route[d.idx[0]].pinId);
+      P(R(`Segment ${d.n}: Layover in ${stopTown(t, d.idx[0])}`, {c: colHex}), {h1: 1, before: 18});
+      if (d.date) P(R(dayDateLong(d), {b: 1}));
+      P(R(`No driving today. Night ${d.night} of ${d.nights}${p && p.stay ? ' at ' + p.name : ''}.`, {c: '444444'}));
+      continue;
+    }
+    const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
+    P(R(`Segment ${d.n}: ${from}${from !== to ? ' to ' + to : ''}`, {c: colHex}), {h1: 1, before: 18});
+    if (d.date) P(R(dayDateLong(d), {b: 1}));
+    P(R(`${milesWord(d.d)}  ·  about ${hrsWord(d.s)} of driving`, {c: '444444'}));
+    if (d.ferry) P(R(`Includes a ferry crossing: ${milesWord(d.ferry.d)}, about ${hrsWord(d.ferry.t)} on the water (plus boarding time).`, {c: '0369A1'}));
+    try { const img = await dayMapImage(t, st, d); if (img) B.push({k: 'img', data: img.data, mime: 'image/png', w: 624, h: Math.round(624 * img.h / img.w), before: 6, after: 4, map: 1}); } catch (e) { console.error('day map', e); }
+    P(R('Stops', {b: 1}), {before: 6});
+    for (let k = 0; k < d.idx.length; k++) {
+      const i = d.idx[k]; const stop = t.route[i]; const p = pinById(stop.pinId); const pl = pinLabel(p);
+      const endOfDay = k === d.idx.length - 1;
+      const lead = k === 0 ? (d.seg === 0 ? 'Start: ' : 'Leave: ') : (endOfDay ? (i === t.route.length - 1 ? 'Trip ends: ' : 'Overnight: ') : '');
+      P([...(lead ? [R(lead, {b: 1})] : []), R(p.name, {b: 1}), ...(pl && !p.address ? [R(`  (${pl})`, {c: '666666'})] : [])], {bullet: 1, before: 4});
+      if (p.address) P(R(p.address, {c: '444444'}), {indent: 1});
+      if (!(k === 0 && d.seg > 0)) {
+        if (p.notes) p.notes.split('\n').filter(x => x.trim()).forEach(line => P(R(line, {c: '333333'}), {indent: 1}));
+        p.links.forEach(l => P(R(l.url, {link: l.url}), {indent: 1}));
+      }
+      if (p.stay && !shown.has(p.id) && (endOfDay || k > 0)) await addStay(p, stop);
+      if (k < d.idx.length - 1) { const x = st.legs[i] && st.legs[i].info; const next = stopTitle(t, d.idx[k + 1]); const nv = st.legs[i] && st.legs[i].vias ? st.legs[i].vias.length : 0;
+        P(R(x && x.status === 'ok' ? `→ Drive ${milesWord(x.d)}, about ${hrsWord(x.t)}, to ${next}${x.ferry ? ' (includes a ferry)' : ''}${nv ? ` (via ${nv} waypoint${nv === 1 ? '' : 's'})` : ''}` : `→ Drive to ${next} (driving time unknown)`, {i: 1, c: colHex}), {indent: 1, before: 2}); }
+    }
+  }
+  const inRoute = new Set(t.route.map(s => s.pinId)); const others = t.pins.filter(p => !inRoute.has(p.id));
+  if (others.length) {
+    P(R('Other saved places (not on the route)'), {h1: 1, before: 20});
+    t.layers.forEach(l => { const ps = others.filter(p => p.layerId === l.id); if (!ps.length) return; if (t.layers.length > 1) P(R(l.name, {b: 1}), {before: 8});
+      ps.forEach(p => { const pl = pinLabel(p); P([R(p.name), ...(pl ? [R(`  (${pl})`, {c: '666666'})] : []), ...(p.notes ? [R(` — ${p.notes.replace(/\s*\n\s*/g, ' ')}`, {c: '555555'})] : [])], {bullet: 1}); }); });
+  }
+  P(R(`Made with Larson Family Maps on ${new Date().toLocaleDateString()}. Drive times are estimates without traffic or stops.`, {size: 9, c: '888888', i: 1}), {before: 20});
+  return B;
+}
+
+async function writeDocx(t, B){
+  await loadScript(DOCX_URL);
+  const {Document, Packer, Paragraph, TextRun, HeadingLevel, ExternalHyperlink, ImageRun, BorderStyle} = window.docx;
+  const stayBar = {left: {style: BorderStyle.SINGLE, size: 24, color: '8B5CF6', space: 10}};
+  const run = r => { const o = {text: r.t}; if (r.b) o.bold = true; if (r.i) o.italics = true; if (r.c) o.color = r.c; if (r.size) o.size = r.size * 2;
+    return r.link ? new ExternalHyperlink({children: [new TextRun({text: r.t, style: 'Hyperlink'})], link: r.link}) : new TextRun(o); };
+  const C = B.map(x => {
+    if (x.k === 'title') return new Paragraph({heading: HeadingLevel.TITLE, children: [new TextRun({text: x.text, bold: true})]});
+    const o = {children: x.k === 'img' ? [new ImageRun({data: x.data, transformation: {width: x.w, height: x.h}})] : x.runs.map(run)};
+    if (x.h1) o.heading = HeadingLevel.HEADING_1;
+    if (x.bullet) o.bullet = {level: 0};
+    if (x.indent) o.indent = {left: 720};
+    if (x.bar) o.border = stayBar;
+    if (x.before != null || x.after != null) { o.spacing = {}; if (x.before != null) o.spacing.before = x.before * 20; if (x.after != null) o.spacing.after = x.after * 20; }
+    return new Paragraph(o);
+  });
+  const doc = new Document({creator: 'Larson Family Maps', title: t.name, styles: {default: {document: {run: {font: 'Calibri', size: 23}}}}, sections: [{properties: {page: {margin: {top: 1080, bottom: 1080, left: 1080, right: 1080}}}, children: C}]});
+  download(await Packer.toBlob(doc), `${safeName(t.name)} - Itinerary.docx`);
+}
+
+/* ---- PDF (jsPDF, with the site's own font embedded) ---- */
+const PDF_GLYPHS = 'd,20-7e,a0-107,10a-113,116-11b,11e-123,126-127,12a-12b,12e-12f,131,136-137,13b-13e,141-148,150-155,158-15b,15e-165,16a-16b,16e-173,178-17e,192,218-21b,2c6-2c7,2d8-2dd,300-304,306-308,30a-30c,326-328,394,3a9,3bc,3c0,2013-2014,2018-201a,201c-201e,2020-2022,2026,2030,2039-203a,2044,2074,20ac,2113,2122,212e,2202,220f,2211-2212,2215,2219-221a,221e,222b,2248,2260,2264-2265,25ca'
+  .split(',').map(r => r.split('-').map(h => parseInt(h, 16))).map(([a, b]) => [a, b ?? a]);
+function pdfText(s){   // the font has Latin letters only: swap the arrow, drop emoji, and mark anything else it can't draw
+  return String(s).normalize('NFC').replace(/→/g, '»').replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}️‍]/gu, '')
+    .replace(/[^]/gu, ch => { const c = ch.codePointAt(0); return PDF_GLYPHS.some(([a, b]) => c >= a && c <= b) ? ch : '?'; });
+}
+let pdfFonts = null;
+async function loadPdfFonts(){
+  if (pdfFonts) return pdfFonts;
+  const get = async n => { const r = await fetch('lib/fonts/AtkinsonHyperlegible-' + n + '.ttf'); if (!r.ok) throw new Error('font ' + r.status); const u = new Uint8Array(await r.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+  const [normal, bold, italic] = await Promise.all(['Regular', 'Bold', 'Italic'].map(get));
+  return pdfFonts = {normal, bold, italic};
+}
+async function pdfImage(data, mime){   // JPEG keeps the PDF small; maps arrive as PNG
+  if (/jpe?g/.test(mime || '')) return {u8: new Uint8Array(data), fmt: 'JPEG'};
+  const bmp = await createImageBitmap(new Blob([data], {type: mime || 'image/png'}));
+  const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0);
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.86));
+  return {u8: new Uint8Array(await blob.arrayBuffer()), fmt: 'JPEG'};
+}
+async function writePdf(t, B){
+  await loadScript(JSPDF_URL); const fonts = await loadPdfFonts();
+  const doc = new window.jspdf.jsPDF({unit: 'pt', format: 'letter', compress: true});
+  for (const [style, data] of Object.entries(fonts)) { doc.addFileToVFS(`AH-${style}.ttf`, data); doc.addFont(`AH-${style}.ttf`, 'AH', style); }
+  doc.setProperties({title: t.name, creator: 'Larson Family Maps'});
+  const PW = 612, PH = 792, M = 54, BOTTOM = PH - M - 14, BAR = [139, 92, 246];
+  let y = M, firstOnPage = true;
+  const rgb = h => h ? [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)] : [17, 24, 39];
+  const newPage = () => { doc.addPage(); y = M; firstOnPage = true; };
+  const room = h => { if (y + h > BOTTOM && !firstOnPage) newPage(); };
+  const setF = (r, size) => { doc.setFont('AH', r.b ? 'bold' : r.i ? 'italic' : 'normal'); doc.setFontSize(size); };
+  const bar = (top, h) => { doc.setDrawColor(...BAR); doc.setLineWidth(3); doc.line(M + 27, top, M + 27, top + h); };
+  // break runs into lines that fit; long words (URLs) break mid-word
+  const layout = (runs, size, width) => {
+    const lines = [[]]; let w = 0;
+    const push = (r, text) => { setF(r, size); const tw = doc.getTextWidth(text); lines[lines.length - 1].push({r, text, w: tw}); w += tw; };
+    for (const r of runs) for (const tok of pdfText(r.t).split(/(\s+)/)) {
+      if (!tok) continue; setF(r, size);
+      const tw = doc.getTextWidth(tok);
+      if (/^\s+$/.test(tok)) { if (lines[lines.length - 1].length) push(r, ' '); continue; }
+      if (w + tw > width && lines[lines.length - 1].length) { const L = lines[lines.length - 1]; while (L.length && /^\s+$/.test(L[L.length - 1].text)) { w -= L.pop().w; } lines.push([]); w = 0; }
+      if (tw <= width) { push(r, tok); continue; }
+      let part = ''; for (const ch of tok) { if (doc.getTextWidth(part + ch) > width - w && part) { push(r, part); lines.push([]); w = 0; part = ''; } part += ch; } if (part) push(r, part);
+    }
+    return lines.filter(l => l.length);
+  };
+  const para = (x, size) => {
+    const left = M + (x.indent ? 36 : 0) + (x.bullet ? 18 : 0), width = PW - M - left, lh = size * 1.3;
+    const lines = layout(x.runs, size, width);
+    lines.forEach((line, n) => {
+      room(lh); const top = y;
+      if (x.bar) bar(top, lh);
+      if (x.bullet && n === 0) { doc.setFont('AH', 'normal'); doc.setFontSize(size); doc.setTextColor(17, 24, 39); doc.text('•', left - 13, top + size); }
+      let cx = left;
+      for (const s of line) {
+        setF(s.r, size); const col = s.r.link ? [29, 78, 216] : rgb(s.r.c); doc.setTextColor(...col); doc.text(s.text, cx, top + size);
+        if (s.r.link) { doc.setDrawColor(...col); doc.setLineWidth(.6); doc.line(cx, top + size + 1.5, cx + s.w, top + size + 1.5); doc.link(cx, top, s.w, lh, {url: s.r.link}); }
+        cx += s.w;
+      }
+      y += lh; firstOnPage = false;
+    });
+  };
+  for (let n = 0; n < B.length; n++) {
+    const x = B[n];
+    if (x.before && !firstOnPage) y += x.before;
+    if (x.k === 'title') { const lines = layout([{t: x.text, b: 1}], 26, PW - 2 * M); lines.forEach(line => { doc.setFont('AH', 'bold'); doc.setFontSize(26); doc.setTextColor(17, 24, 39); doc.text(line.map(s => s.text).join(''), M, y + 26); y += 34; }); y += 4; firstOnPage = false; continue; }
+    if (x.k === 'img') {
+      try {
+        const left = M + (x.indent ? 36 : 0), maxW = PW - M - left; let w = x.w * .75, h = x.h * .75;   // Word sizes are in pixels
+        if (w > maxW) { h *= maxW / w; w = maxW; } if (h > BOTTOM - M) { w *= (BOTTOM - M) / h; h = BOTTOM - M; }
+        room(h); const im = await pdfImage(x.data, x.mime);
+        if (x.bar) bar(y, h + 4);
+        doc.addImage(im.u8, im.fmt, x.indent ? left + 8 : left, y, w, h, undefined, 'FAST');
+        if (x.map) { doc.setDrawColor(203, 213, 225); doc.setLineWidth(.75); doc.rect(left, y, w, h); }
+        y += h + 4; firstOnPage = false;
+      } catch (e) { console.error('pdf image', e); }
+      if (x.after) y += x.after; continue;
+    }
+    if (x.h1) { room(17 * 1.3 + 90); doc.setFont('AH', 'bold'); para(Object.assign({}, x, {runs: x.runs.map(r => Object.assign({}, r, {b: 1}))}), 17); y += 2; }
+    else para(x, x.runs[0] && x.runs[0].size ? x.runs[0].size : 11.5);
+    if (x.after) y += x.after;
+  }
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) { doc.setPage(p); doc.setFont('AH', 'normal'); doc.setFontSize(9); doc.setTextColor(136, 136, 136);
+    doc.text(pdfText(t.name), M, PH - 30); doc.text(`Page ${p} of ${pages}`, PW - M, PH - 30, {align: 'right'}); }
+  download(doc.output('blob'), `${safeName(t.name)} - Itinerary.pdf`);
+}
+
 async function makeDoc(btn){
   const {t, st, days} = planData();
   if (t.route.length < 2) { toast('Make a route first (Step 2).'); return; }
   if (st.pending) { toast('Still loading some driving times. Try again in a few seconds.'); return; }
-  const old = btn && btn.innerHTML; if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>Exporting the itinerary…'; }
+  const fmt = await modal({title: 'Export trip itinerary', html: `<p>Which kind of file would you like? Both have a map for each segment and all your stay details.</p>
+    <div class="fmt-choices">
+      <button class="fmt" data-v="docx"><i class="fa-solid fa-file-word" style="color:#60a5fa"></i><span><b>Word document</b><small>Best if you want to change it. Opens in Word, Pages and Google Docs.</small></span></button>
+      <button class="fmt" data-v="pdf"><i class="fa-solid fa-file-pdf" style="color:#f87171"></i><span><b>PDF</b><small>Best for printing or sending. Opens on any phone or computer and looks the same everywhere.</small></span></button>
+    </div>`, onOpen: (back, close) => back.querySelectorAll('.fmt').forEach(b => b.onclick = () => close(b.dataset.v)), buttons: [{label: 'Cancel', value: null}]});
+  if (!fmt) return;
+  const old = btn && btn.innerHTML; if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i>Making the ${fmt === 'pdf' ? 'PDF' : 'Word document'}…`; }
+  if (!btn) toast(`Making the ${fmt === 'pdf' ? 'PDF' : 'Word document'}…`, {ms: 3000});
   try {
-    await loadScript(DOCX_URL);
-    const {Document, Packer, Paragraph, TextRun, HeadingLevel, ExternalHyperlink, ImageRun, BorderStyle} = window.docx;
-    const C = [];
-    const P = (runs, o = {}) => C.push(new Paragraph(Object.assign({children: Array.isArray(runs) ? runs : [new TextRun(String(runs))]}, o)));
-    const stayBar = {left: {style: BorderStyle.SINGLE, size: 24, color: '8B5CF6', space: 10}};
-    P([new TextRun({text: t.name, bold: true})], {heading: HeadingLevel.TITLE});
-    const drives = days.filter(d => d.kind === 'drive');
-    const range = days[0].date ? `${days[0].date.toLocaleDateString(undefined, {month: 'long', day: 'numeric'})} – ${days[days.length - 1].date.toLocaleDateString(undefined, {month: 'long', day: 'numeric', year: 'numeric'})}` : '';
-    P([new TextRun({text: [range, `${days.length} segment${days.length === 1 ? '' : 's'}`, `${t.route.length} stops`, milesWord(st.d), `about ${hrsWord(st.s)} of driving`].filter(Boolean).join('  ·  '), color: '555555'})], {spacing: {after: 120}});
-    const lodging = lodgingTotals(t); if (lodging) P([new TextRun({text: 'Lodging: ', bold: true, color: '6D28D9'}), new TextRun({text: lodging, color: '6D28D9'})], {spacing: {after: 300}});
-    if (st.errors) P([new TextRun({text: `Note: ${st.errors} drive${st.errors === 1 ? '' : 's'} couldn’t be found and ${st.errors === 1 ? 'is' : 'are'} not included in the totals.`, italics: true, color: 'B00020'})]);
-    const shown = new Set();
-    const addStay = async (p, stop) => {
-      const s = p.stay; const sh = stayShows(s); shown.add(p.id);
-      const nights = stop && stop.overnight ? ` · ${stop.nights} night${stop.nights === 1 ? '' : 's'}` : '';
-      const line = (runs) => P(runs, {indent: {left: 720}, border: stayBar});
-      P([new TextRun({text: 'Where we’re staying: ', bold: true, color: '6D28D9'}), new TextRun({text: p.name, bold: true}), new TextRun({text: `  (${stayLabel(s)}${nights})`, color: '666666'})], {indent: {left: 720}, border: stayBar, spacing: {before: 140}});
-      const rows = [];
-      if (sh.site) rows.push(['Site number', s.site]);
-      if (sh.phone) rows.push(['Phone', s.phone]);
-      if (sh.times) rows.push(['Check-in', s.checkin], ['Check-out', s.checkout]);
-      if (sh.conf) rows.push(['Confirmation #', s.conf]);
-      if (sh.money) rows.push(['Already paid', money(s.paid)], ['Due when we arrive', money(s.due)]);
-      rows.forEach(([k, v]) => { if (String(v || '').trim()) line([new TextRun({text: k + ': ', bold: true}), new TextRun(String(v))]); });
-      if (sh.perks && (s.reward || s.points)) line([new TextRun({text: 'Booked as: ', bold: true}), new TextRun([s.reward && 'Loyalty / reward night', s.points && 'Paid with points'].filter(Boolean).join(' · '))]);
-      if (sh.amen) { const has = stayAmenList(s); const no = AMENITIES.filter(([k]) => !s.amen[k]).map(([, l]) => l.toLowerCase()); if (has.length) line([new TextRun({text: 'Has: ', bold: true}), new TextRun(has.join(', '))]); if (has.length && no.length) line([new TextRun({text: 'Not listed: ', bold: true, color: '888888'}), new TextRun({text: no.join(', '), color: '888888'})]); }
-      if (s.notes.trim()) { line([new TextRun({text: stayNotesLabel(s) + ':', bold: true})]); s.notes.split('\n').filter(x => x.trim()).forEach(l => line([new TextRun(l)])); }
-      for (const ph of s.photos) {
-        try { const b = await PhotoDB.get(ph.id); if (!b) continue; const w0 = ph.w || 800, h0 = ph.h || 600; const sc = Math.min(1, 430 / w0, 520 / h0);
-          P([new ImageRun({data: await b.arrayBuffer(), transformation: {width: Math.round(w0 * sc), height: Math.round(h0 * sc)}})], {indent: {left: 720}, border: stayBar, spacing: {before: 80}}); } catch (e) { console.error(e); }
-      }
-    };
-    for (const d of days) {
-      const colHex = dayColor(d.seg, true).slice(1);
-      if (d.kind === 'layover') {
-        const p = pinById(t.route[d.idx[0]].pinId);
-        P([new TextRun({text: `Segment ${d.n}: Layover in ${stopTown(t, d.idx[0])}`, color: colHex})], {heading: HeadingLevel.HEADING_1, spacing: {before: 360}});
-        if (d.date) P([new TextRun({text: dayDateLong(d), bold: true})]);
-        P([new TextRun({text: `No driving today. Night ${d.night} of ${d.nights}${p && p.stay ? ' at ' + p.name : ''}.`, color: '444444'})]);
-        continue;
-      }
-      const from = stopTown(t, d.idx[0]), to = stopTown(t, d.idx[d.idx.length - 1]);
-      P([new TextRun({text: `Segment ${d.n}: ${from}${from !== to ? ' to ' + to : ''}`, color: colHex})], {heading: HeadingLevel.HEADING_1, spacing: {before: 360}});
-      if (d.date) P([new TextRun({text: dayDateLong(d), bold: true})]);
-      P([new TextRun({text: `${milesWord(d.d)}  ·  about ${hrsWord(d.s)} of driving`, color: '444444'})]);
-      if (d.ferry) P([new TextRun({text: `Includes a ferry crossing: ${milesWord(d.ferry.d)}, about ${hrsWord(d.ferry.t)} on the water (plus boarding time).`, color: '0369A1'})]);
-      try { const img = await dayMapImage(t, st, d); if (img) P([new ImageRun({data: img.data, transformation: {width: 624, height: Math.round(624 * img.h / img.w)}})], {spacing: {before: 120, after: 80}}); } catch (e) { console.error('day map', e); }
-      P([new TextRun({text: 'Stops', bold: true})], {spacing: {before: 120}});
-      for (let k = 0; k < d.idx.length; k++) {
-        const i = d.idx[k]; const stop = t.route[i]; const p = pinById(stop.pinId); const pl = pinLabel(p);
-        const endOfDay = k === d.idx.length - 1;
-        const lead = k === 0 ? (d.seg === 0 ? 'Start: ' : 'Leave: ') : (endOfDay ? (i === t.route.length - 1 ? 'Trip ends: ' : 'Overnight: ') : '');
-        P([new TextRun({text: lead, bold: true}), new TextRun({text: p.name, bold: true}), ...(pl && !p.address ? [new TextRun({text: `  (${pl})`, color: '666666'})] : [])], {bullet: {level: 0}, spacing: {before: 80}});
-        if (p.address) P([new TextRun({text: p.address, color: '444444'})], {indent: {left: 720}});
-        if (!(k === 0 && d.seg > 0)) {
-          if (p.notes) p.notes.split('\n').filter(x => x.trim()).forEach(line => P([new TextRun({text: line, color: '333333'})], {indent: {left: 720}}));
-          p.links.forEach(l => P([new ExternalHyperlink({children: [new TextRun({text: l.url, style: 'Hyperlink'})], link: l.url})], {indent: {left: 720}}));
-        }
-        if (p.stay && !shown.has(p.id) && (endOfDay || k > 0)) await addStay(p, stop);
-        if (k < d.idx.length - 1) { const x = st.legs[i] && st.legs[i].info; const next = stopTitle(t, d.idx[k + 1]);
-          P([new TextRun({text: x && x.status === 'ok' ? `→ Drive ${milesWord(x.d)}, about ${hrsWord(x.t)}, to ${next}${x.ferry ? ' (includes a ferry)' : ''}${st.legs[i].vias.length ? ` (via ${st.legs[i].vias.length} waypoint${st.legs[i].vias.length === 1 ? '' : 's'})` : ''}` : `→ Drive to ${next} (driving time unknown)`, italics: true, color: colHex})], {indent: {left: 720}, spacing: {before: 40}}); }
-      }
-    }
-    const inRoute = new Set(t.route.map(s => s.pinId)); const others = t.pins.filter(p => !inRoute.has(p.id));
-    if (others.length) {
-      P([new TextRun('Other saved places (not on the route)')], {heading: HeadingLevel.HEADING_1, spacing: {before: 400}});
-      t.layers.forEach(l => { const ps = others.filter(p => p.layerId === l.id); if (!ps.length) return; if (t.layers.length > 1) P([new TextRun({text: l.name, bold: true})], {spacing: {before: 160}});
-        ps.forEach(p => { const pl = pinLabel(p); P([new TextRun({text: p.name}), ...(pl ? [new TextRun({text: `  (${pl})`, color: '666666'})] : []), ...(p.notes ? [new TextRun({text: ` — ${p.notes.replace(/\s*\n\s*/g, ' ')}`, color: '555555'})] : [])], {bullet: {level: 0}}); }); });
-    }
-    P([new TextRun({text: `Made with Larson Family Maps on ${new Date().toLocaleDateString()}. Drive times are estimates without traffic or stops.`, size: 18, color: '888888', italics: true})], {spacing: {before: 400}});
-    const doc = new Document({creator: 'Larson Family Maps', title: t.name, styles: {default: {document: {run: {font: 'Calibri', size: 23}}}}, sections: [{properties: {page: {margin: {top: 1080, bottom: 1080, left: 1080, right: 1080}}}, children: C}]});
-    const blob = await Packer.toBlob(doc);
-    download(blob, `${safeName(t.name)} - Itinerary.docx`);
-    toast('Itinerary exported. Look in your Downloads folder.');
+    const B = await itineraryBlocks(t, st, days);
+    if (fmt === 'pdf') await writePdf(t, B); else await writeDocx(t, B);
+    toast(`Itinerary ${fmt === 'pdf' ? 'PDF' : 'Word document'} downloaded. Look in your Downloads folder.`);
   } catch (err) { console.error(err); toast('Couldn’t export the itinerary. Check your internet connection and try again.', {err: true, ms: 7000}); }
   finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
 }
