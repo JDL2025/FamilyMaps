@@ -1738,7 +1738,7 @@ function renderBanner(){
   const b = $('#banner'); const t = trip();
   if (ui.mode === 'waypoint') { b.className = 'banner waypoint'; b.hidden = false; b.innerHTML = `<span class="wpb">W</span><span>${TAP} the map where the route should go</span><button class="btn sm" data-act="wp-mode"><i class="fa-solid fa-check"></i>Done</button>`; }
   else if (ui.mode === 'measure') { b.className = 'banner measure'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-ruler"></i><span>${TAP} two or more spots to measure</span><button class="btn sm" id="bannerMeasureDone">Done</button>`; $('#bannerMeasureDone').onclick = () => setMode(null); }
-  else if (ui.step === 'route' && t.pins.length && !ui.editorPinId) { b.className = 'banner route'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-route"></i><span>${TAP} pins in the order you’ll visit them</span>`; }
+  else if (ui.step === 'route' && t.pins.length && t.route.length < 2 && !ui.editorPinId) { b.className = 'banner route'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-route"></i><span>${TAP} pins in the order you’ll visit them</span>`; }
   else b.hidden = true;
 }
 
