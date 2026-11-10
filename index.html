@@ -122,6 +122,11 @@ textarea.input{min-height:110px;resize:vertical;line-height:1.4}
 .addr-item .ai-row label{margin-left:auto;display:flex;align-items:center;gap:7px;color:var(--muted);font-size:14px;cursor:pointer}
 .addr-item .ai-row input[type=checkbox]{width:20px;height:20px;accent-color:var(--days)}
 .addr-item.skip .input{opacity:.45}
+.dup-item{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--panel2)}
+.dup-item .ai-head{margin-bottom:10px}
+.dup-item .dup-where{color:var(--muted);font-size:14px;margin:-4px 0 10px 40px}
+.seg2{display:flex;gap:6px}.seg2 button{flex:1;padding:10px 8px;border-radius:11px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-weight:700;font-size:15px}
+.seg2 button.on{background:#1d2a40;border-color:var(--pins);color:#fff}
 .stopnum{min-width:30px;height:26px;border-radius:13px;padding:0 7px;display:grid;place-items:center;background:var(--route);color:#06210f;font-size:13px;font-weight:700}
 
 /* ---------- Route & days ---------- */
@@ -778,11 +783,11 @@ function renderMap(){
   for (const [id, rec] of markers) if (!seen.has(id)) { map.removeLayer(rec.m); markers.delete(id); }
   drawRoute(); drawSuggestions(); drawWaypoints();
 }
-let lastRouteSig = '';
+let lastRouteSig = null;
 function legSegs(t){ const out = []; let s = 0; for (let i = 0; i < t.route.length - 1; i++) { out.push(s); if (t.route[i + 1].overnight && i + 1 < t.route.length - 1) s++; } return out; }
 function drawRoute(){
   const t = trip(); const legs = routeLegs(t); const segOf = legSegs(t);
-  const sig = legs.map((l, i) => l.key + ':' + (l.info ? l.info.status : 'none') + ':' + segOf[i]).join('|');
+  const sig = t.id + '#' + legs.map((l, i) => l.key + ':' + (l.info ? l.info.status : 'none') + ':' + segOf[i]).join('|');
   if (sig === lastRouteSig) return; lastRouteSig = sig;
   routeLayer.clearLayers();
   legs.forEach((l, i) => {
@@ -816,7 +821,7 @@ function drawSuggestions(){
 function fitTrip(){
   const t = trip(); const vis = new Set(t.layers.filter(l => l.visible).map(l => l.id));
   const pts = t.pins.filter(p => vis.has(p.layerId)).map(p => [p.lat, p.lng]);
-  if (!pts.length) { map.setView([39.5, -96], 4); toast('No pins yet. Press “Add pins” to start.'); return; }
+  if (!pts.length) { map.setView([39.5, -96], 4); toast(`No pins yet. ${TAP} the map or search for a place to add one.`); return; }
   if (pts.length === 1) map.setView(pts[0], 11); else map.fitBounds(pts, {padding: [60, 60], maxZoom: 13});
 }
 $('#fitBtn').onclick = fitTrip;
@@ -907,6 +912,55 @@ function lookupImported(pins){
   addrJob = {total: pins.length, found: 0, ids: new Set(pins.map(p => p.id)), all: pins.map(p => p.id)};
   pins.forEach(p => fillPlace(p.id, true));
   toast(`Looking up addresses for ${pins.length} places in the background. This takes about ${Math.max(1, Math.round(pins.length * 1.6 / 60))} minute${pins.length * 1.6 > 90 ? 's' : ''}.`, {ms: 7000});
+}
+function normName(n){ return (n || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim(); }
+function samePlace(a, b){ return normName(a.name) && normName(a.name) === normName(b.name) && haversine(a, b) < 300; }
+function dupGroups(t, onlyIds){
+  const groups = [];
+  for (const p of t.pins) { if (p.autoName) continue; const g = groups.find(g => samePlace(g[0], p)); if (g) g.push(p); else groups.push([p]); }
+  return groups.filter(g => g.length > 1 && (!onlyIds || g.some(p => onlyIds.has(p.id))));
+}
+function pinRichness(p, t){ return (t.route.some(s => s.pinId === p.id) ? 1000 : 0) + (p.stay ? 500 : 0) + (p.address ? 50 : 0) + (p.notes || '').length + (p.links || []).length * 10; }
+async function reviewDuplicates(onlyIds, quietIfNone){
+  const t = trip(); const groups = dupGroups(t, onlyIds);
+  if (!groups.length) { if (!quietIfNone) toast('No duplicate pins found.'); return; }
+  const lname = id => { const l = layerById(id); return l ? l.name : 'a layer'; };
+  const where = g => { const names = [...new Set(g.map(p => lname(p.layerId)))]; return names.length === 1 ? `${g.length} copies in “${esc(names[0])}”` : `In ${names.map(n => `“${esc(n)}”`).join(' and ')}`; };
+  const rows = groups.map((g, i) => { const p = g[0]; return `<div class="addr-item dup-item" data-i="${i}">
+    <div class="ai-head"><span class="dot" style="--c:${p.color};--fg:${fgFor(p.color)}"><i class="fa-solid fa-${p.icon}"></i></span><span><b>${esc(p.name)}</b>${pinLabel(p) ? `<small>${esc(pinLabel(p))}</small>` : ''}</span></div>
+    <div class="dup-where">${where(g)}</div>
+    <div class="seg2"><button data-v="one" class="on">Keep one</button><button data-v="all">Keep ${g.length === 2 ? 'both' : 'all ' + g.length}</button></div></div>`; }).join('');
+  const res = await modal({wide: true, title: `${groups.length} place${groups.length === 1 ? ' is' : 's are'} pinned more than once`,
+    html: `<p>${groups.length === 1 ? 'This place appears' : 'These places appear'} on your map more than once, in the same spot. Keep just one, or keep every copy if you want ${groups.length === 1 ? 'it' : 'them'} in more than one layer. Notes and links from the copies are kept.</p><div class="addr-list">${rows}</div>`,
+    onOpen: back => back.querySelectorAll('.seg2').forEach(sg => sg.onclick = e => { const b = e.target.closest('button'); if (!b) return; sg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); }),
+    buttons: [{label: 'Keep everything', value: null}, {label: '<i class="fa-solid fa-check"></i>Done', kind: 'blue', primary: true,
+      get: back => [...back.querySelectorAll('.dup-item')].filter(it => it.querySelector('.seg2 .on').dataset.v === 'one').map(it => +it.dataset.i)}]});
+  if (!res || !res.length) return;
+  let removed = 0;
+  change('Remove duplicate pins', t => {
+    for (const i of res) {
+      const ids = groups[i].map(p => p.id); const g = t.pins.filter(p => ids.includes(p.id)); if (g.length < 2) continue;
+      const keep = g.slice().sort((a, b) => pinRichness(b, t) - pinRichness(a, t))[0];
+      for (const p of g) {
+        if (p === keep) continue;
+        const n = (p.notes || '').trim(); if (n && !(keep.notes || '').includes(n)) keep.notes = keep.notes ? keep.notes.trim() + '\n\n' + n : n;
+        for (const l of p.links || []) if (!(keep.links || []).some(k => k.url === l.url)) (keep.links = keep.links || []).push(l);
+        if (!keep.address && p.address) keep.address = p.address;
+        if (!keep.stay && p.stay) keep.stay = p.stay;
+        t.route.forEach(st => { if (st.pinId === p.id) st.pinId = keep.id; });
+        removed++;
+      }
+      const drop = new Set(g.filter(p => p !== keep).map(p => p.id)); t.pins = t.pins.filter(p => !drop.has(p.id));
+    }
+  });
+  undoToast(`Removed ${removed} duplicate pin${removed === 1 ? '' : 's'}.`);
+}
+async function checkDupBeforeAdd(r, toRoute){
+  const t = trip(); const ex = t.pins.find(p => samePlace(p, r)); if (!ex) return 'add';
+  const inRoute = t.route.some(s => s.pinId === ex.id);
+  return modal({title: `“${esc(ex.name)}” is already on your map`, html: `<p>You already have a pin here${layerById(ex.layerId) ? ` in “${esc(layerById(ex.layerId).name)}”` : ''}${inRoute ? ', and it’s in your route' : ''}. Do you want a second copy?</p>`,
+    buttons: [{label: 'Cancel', value: null}, {label: 'Add another copy', kind: 'ghost', value: 'add'},
+      toRoute ? {label: '<i class="fa-solid fa-route"></i>Use the one I have', kind: 'blue', primary: true, value: 'route:' + ex.id} : {label: '<i class="fa-solid fa-location-dot"></i>Show me that pin', kind: 'blue', primary: true, value: 'show:' + ex.id}]});
 }
 function needsAddr(p){ return !!p.addrTried && !(p.address || '').trim() && !p.poi && !p.noAddr && !p.autoName && !p.fromSug; }
 async function promptAddresses(ids){
@@ -1140,7 +1194,7 @@ async function osrmRoute(pts){
 }
 let routeRenderTimer = null;
 function routeUpdated(){ clearTimeout(routeRenderTimer); routeRenderTimer = setTimeout(() => { drawRoute(); if (ui.step !== 'pins') renderPanelSoft(); }, 120); }
-function retryErrors(){ const t = trip(); routeLegs(t).forEach(l => { if (l.info && l.info.status === 'error') legCache.delete(l.key); }); lastRouteSig = ''; ensureRoute(); renderPanelSoft(); drawRoute(); }
+function retryErrors(){ const t = trip(); routeLegs(t).forEach(l => { if (l.info && l.info.status === 'error') legCache.delete(l.key); }); lastRouteSig = null; ensureRoute(); renderPanelSoft(); drawRoute(); }
 
 /* ---------- waypoints ---------- */
 function nearestOnLine(coords, ll){
@@ -2127,8 +2181,15 @@ function pickResult(i){
   div.innerHTML = `<div class="pp-title">${esc(r.name)}</div><div class="pp-sub">${esc(r.address && r.address !== r.name ? r.address : r.sub || '')}</div><button class="btn blue" data-pp="add"><i class="fa-solid fa-plus"></i>Add as a pin</button>${ui.step === 'route' ? '<button class="btn green" data-pp="addroute"><i class="fa-solid fa-route"></i>Add pin + add to route</button>' : ''}${ui.step !== 'pins' && trip().route.length >= 2 ? '<button class="btn yellow" data-pp="waypoint"><span class="wpb">W</span>Add as a waypoint</button>' : ''}<a class="btn ghost" href="${esc(gmapsUrl(r))}" target="_blank" rel="noopener" style="width:100%;margin-top:6px;text-decoration:none;color:var(--text)"><i class="fa-solid fa-arrow-up-right-from-square"></i>Open in Google Maps</a>`;
   div.addEventListener('click', ev => { const b = ev.target.closest('[data-pp]'); if (!b) return;
     if (b.dataset.pp === 'waypoint') { addWaypointAt(L.latLng(r.lat, r.lng)); map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; clearNear(); return; }
-    addPinAt(L.latLng(r.lat, r.lng), {name: r.name, place: r.place, address: r.address, poi: r.poi, toRoute: b.dataset.pp === 'addroute'});
-    map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; clearNear(); });
+    const toRoute = b.dataset.pp === 'addroute';
+    const finish = () => { if (previewMarker) map.removeLayer(previewMarker); previewMarker = null; sInput.value = ''; $('#searchClear').hidden = true; searchResults = []; lastFull = ''; clearNear(); };
+    checkDupBeforeAdd(r, toRoute).then(v => {
+      if (!v) return;
+      if (v === 'add') addPinAt(L.latLng(r.lat, r.lng), {name: r.name, place: r.place, address: r.address, poi: r.poi, toRoute});
+      else if (v.startsWith('route:')) { const id = v.slice(6); change('Add stop', t => t.route.push({sid: uid(), pinId: id, overnight: false})); undoToast('Added your existing pin to the route'); }
+      else { const p = pinById(v.slice(5)); finish(); if (p) { const l = layerById(p.layerId); if (l && !l.visible) change('Show layer', () => { layerById(p.layerId).visible = true; }); ui.selectedPinId = p.id; render(); flyToPin(p); } return; }
+      finish(); });
+  });
   previewMarker.bindPopup(div, {minWidth: 250, maxWidth: 300, autoPanPadding: [40, 90]});
   setTimeout(() => previewMarker && previewMarker.openPopup(), 750);
 }
@@ -2181,8 +2242,8 @@ $('#tripBtn').onclick = () => {
     {icon: 'trash-can', label: 'Delete this trip', cls: 'danger', run: deleteTrip});
   showMenu($('#tripBtn'), items);
 };
-function switchTrip(id){ if (id === db.currentId) return; map.closePopup(); db.currentId = id; ui.editorPinId = null; ui.selectedPinId = null; ui.filter = ''; lastRouteSig = ''; $('#editor').hidden = true; scheduleSave(); render(); fitTrip(); }
-async function createTrip(){ const name = await askText('Start a new trip', 'Trip name', '', 'Create trip'); if (!name) return; const t = newTrip(name); db.trips.push(t); switchTrip(t.id); setStep('pins'); toast(`Created “${name}”. Press “Add pins” to begin.`); }
+function switchTrip(id){ if (id === db.currentId) return; map.closePopup(); db.currentId = id; ui.editorPinId = null; ui.selectedPinId = null; ui.filter = ''; lastRouteSig = null; $('#editor').hidden = true; scheduleSave(); render(); fitTrip(); }
+async function createTrip(){ const name = await askText('Start a new trip', 'Trip name', '', 'Create trip'); if (!name) return; const t = newTrip(name); db.trips.push(t); switchTrip(t.id); setStep('pins'); toast(`Created “${name}”. ${TAP} the map or search for a place to add your first pin.`); }
 async function renameTrip(){ const t = trip(); const name = await askText('Rename trip', 'Trip name', t.name); if (name) change('Rename trip', t => t.name = name); }
 function duplicateTrip(){ const t = JSON.parse(JSON.stringify(trip())); t.id = uid(); t.name = t.name + ' (copy)'; t.created = t.updated = Date.now(); db.trips.push(t); switchTrip(t.id); toast('Copy created. You’re now in the copy.'); }
 async function deleteTrip(){
@@ -2190,7 +2251,7 @@ async function deleteTrip(){
   if (!await askConfirm('Delete this trip?', `<b>“${esc(t.name)}”</b> and its ${t.pins.length} pins will be deleted from this browser.`, 'Delete trip', true)) return;
   const idx = db.trips.indexOf(t); db.trips.splice(idx, 1);
   if (!db.trips.length) db.trips.push(newTrip('New Map'));
-  db.currentId = db.trips[0].id; ui.editorPinId = null; lastRouteSig = ''; scheduleSave(); render(); fitTrip();
+  db.currentId = db.trips[0].id; ui.editorPinId = null; lastRouteSig = null; scheduleSave(); render(); fitTrip();
   toast(`Deleted “${t.name}”`, {action: 'Undo', ms: 10000, onAction: () => { db.trips.splice(Math.min(idx, db.trips.length), 0, t); switchTrip(t.id); }});
 }
 $('#moreBtn').onclick = () => showMenu($('#moreBtn'), [
@@ -2202,6 +2263,7 @@ $('#moreBtn').onclick = () => showMenu($('#moreBtn'), [
   {icon: 'file-export', label: 'Export this trip for Google Earth / My Maps (KML)', run: exportKML},
   {icon: 'floppy-disk', label: 'Download a backup of all trips', run: exportBackup},
   '-',
+  {icon: 'clone', label: 'Find duplicate pins', run: () => reviewDuplicates(null, false)},
   {icon: 'circle-question', label: 'How to use Larson Family Maps', run: showHelp}
 ]);
 $('#undoBtn').onclick = undo; $('#redoBtn').onclick = redo;
@@ -2242,7 +2304,8 @@ async function importFile(file){
     if (choice === 'new') { const t = newTrip(res.name); t.layers = res.layers; t.activeLayerId = res.layers[0].id; t.pins = res.pins; db.trips.push(normalizeTrip(t)); switchTrip(t.id); setStep('pins'); }
     else { change('Import pins', t => { t.layers.push(...res.layers); t.pins.push(...res.pins); }); fitTrip(); }
     toast(`Imported ${res.pins.length} places.`);
-    lookupImported(res.pins);
+    await reviewDuplicates(new Set(res.pins.map(p => p.id)), true);
+    lookupImported(res.pins.filter(p => pinById(p.id)));
   } catch (err) {
     console.error(err);
     modal({title: 'That file couldn’t be opened', html: `<p>Make sure it’s a KML or KMZ file exported from Google My Maps, or a backup file from this site.</p><p style="font-size:14px">${esc(err.message || '')}</p>`, buttons: [{label: 'OK', kind: 'blue'}]});
