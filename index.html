@@ -1663,9 +1663,9 @@ function daysView(){
     const nights = t.route.filter((s, i) => s.overnight && i > 0 && i < n - 1).length;
     const stays = t.route.filter((s, i) => s.overnight && i > 0 && i < n - 1 && pinById(s.pinId)?.stay).length;
     html += `<div class="guide"><ol>
-      <li class="done"><span class="n"><i class="fa-solid fa-check"></i></span><span><b>Put your stops in order.</b> You have ${n} stops. To add or reorder stops, <a href="#" data-act="go" data-step="route" style="color:#93c5fd">go to Step 2: Route</a>.</span></li>
-      <li class="${nights ? 'done' : ''}"><span class="n">${nights ? '<i class="fa-solid fa-check"></i>' : '2'}</span><span><b>Read down the list below.</b> Each stop shows the drive that gets you there and how much you’ve driven so far in that segment. On the stop where you’ll sleep, press <b><i class="fa-solid fa-moon"></i> End segment</b>.${nights ? ` You’ve ended ${nights} segment${nights === 1 ? '' : 's'}.` : ''}</span></li>
-      <li class="${nights && stays === nights ? 'done' : ''}"><span class="n">${nights && stays === nights ? '<i class="fa-solid fa-check"></i>' : '3'}</span><span><b>Add nights and lodging.</b> Use <b>−</b> and <b>+</b> to stay more than one night, and press <b>Add where we’re staying</b> for hotel or campsite details.</span></li>
+      <li class="done"><span class="n"><i class="fa-solid fa-check"></i></span><span>You have ${n} stops. To change their order, <a href="#" data-act="go" data-step="route" style="color:#93c5fd">go back to the Route menu</a>.</span></li>
+      <li class="${nights ? 'done' : ''}"><span class="n">${nights ? '<i class="fa-solid fa-check"></i>' : '2'}</span><span>On stops where you’ll sleep, press <b><i class="fa-solid fa-moon"></i> End segment</b>. Use <b>−</b> and <b>+</b> to stay more than one night.${nights ? ` You’ve ended ${nights} segment${nights === 1 ? '' : 's'}.` : ''}</span></li>
+      <li class="${nights && stays === nights ? 'done' : ''}"><span class="n">${nights && stays === nights ? '<i class="fa-solid fa-check"></i>' : '3'}</span><span>Add accommodation details by pressing <b>Add Accommodation Details</b>.</span></li>
     </ol></div>`;
   } else {
     html += `<div class="guide"><p class="hint" style="margin:0 0 10px">Smart Segments plans the segments for you, so no segment has more driving than the limit you pick. If one drive is longer than that, it suggests towns along the way, shown on the map with a <b style="color:#fbbf24">?</b>. You can change anything afterward.</p>
@@ -1716,7 +1716,7 @@ function daysView(){
   return html;
 }
 function stayChip(p, offerAdd){
-  if (!p.stay) return offerAdd ? `<button class="stay-chip add" data-act="edit-stay" data-id="${p.id}"><i class="fa-solid fa-plus"></i>Add where we’re staying</button>` : '';
+  if (!p.stay) return offerAdd ? `<button class="stay-chip add" data-act="edit-stay" data-id="${p.id}"><i class="fa-solid fa-plus"></i>Add Accommodation Details</button>` : '';
   const s = p.stay; const sh = stayShows(s); const bits = [s.type === 'camping' ? CAMP_TYPES[s.camp].label : STAY_TYPES[s.type].label];
   if (sh.site && s.site) bits.push('site ' + s.site);
   if (sh.times && s.checkin) bits.push('check-in ' + s.checkin);
@@ -1759,7 +1759,7 @@ function renderEditor(force){
   const t = trip(); const nums = stopNumbers(t).get(p.id);
   const knownColor = COLORS.some(c => c[0].toLowerCase() === p.color.toLowerCase());
   ed.hidden = false;
-  ed.innerHTML = `<div class="ed-top"><button class="btn sm green" data-act="close-editor"><i class="fa-solid fa-check"></i>Done</button><h2>Edit pin</h2><button class="btn sm ghost" data-act="delete-pin" style="color:#fca5a5"><i class="fa-solid fa-trash-can"></i>Delete</button></div>
+  ed.innerHTML = `<div class="ed-top"><button class="btn sm green" data-act="close-editor"><i class="fa-solid fa-check"></i>Done</button><h2>Edit pin</h2><button class="btn sm ghost" data-act="delete-pin" style="color:#fca5a5"><i class="fa-solid fa-trash-can"></i>Delete Pin</button></div>
   <div class="ed-body">
     <label class="label" for="edName">Name</label>
     <input class="input name-input" id="edName" value="${esc(p.name)}" maxlength="140" autocomplete="off">
@@ -1790,7 +1790,7 @@ function renderEditor(force){
 function staySectionHtml(p){
   const s = p.stay;
   const types = cur => `<div class="stay-types">${Object.entries(STAY_TYPES).map(([k, v]) => `<button class="stay-type${cur === k ? ' on' : ''}" data-act="stay-type" data-k="${k}"><i class="fa-solid fa-${v.icon}"></i>${v.label}</button>`).join('')}</div>`;
-  if (!s && !ui.stayPick) return `<div id="staySection" style="margin-top:16px"><button class="btn stay-toggle" data-act="stay-on"><i class="fa-solid fa-bed"></i><span>We’re staying here overnight<br><small style="font-weight:400;color:var(--muted)">Hotel, Airbnb, camping or friends: check-in details, confirmation, payments and photos</small></span></button></div>`;
+  if (!s && !ui.stayPick) return `<div id="staySection" style="margin-top:16px"><button class="btn stay-toggle" data-act="stay-on"><i class="fa-solid fa-bed"></i><span>Add Accommodation Details<br><small style="font-weight:400;color:var(--muted)">Hotel, Airbnb, camping or friends: check-in details, confirmation, payments and photos</small></span></button></div>`;
   if (!s) return `<div class="stay-box" id="staySection"><div class="stay-head"><span><i class="fa-solid fa-bed"></i> What kind of place is it?</span><button class="btn sm ghost" data-act="stay-cancel">Cancel</button></div>${types(null)}</div>`;
   const sh = stayShows(s);
   const f = (id, label, val, ph, extra = '') => `<div><label class="label" for="st_${id}">${label}</label><input class="input" id="st_${id}" data-stay="${id}" value="${esc(val)}" placeholder="${esc(ph)}" autocomplete="off" ${extra}></div>`;
