@@ -208,6 +208,15 @@ body.pin-dragging .pin-row{cursor:grabbing}
 .ed-body{flex:1;overflow-y:auto;padding:4px 16px 40px}
 .name-input{font-size:20px;font-weight:700;min-height:54px}
 .place-line{color:var(--muted);font-size:14px;margin-top:8px}
+.ed-date{display:flex;align-items:center;gap:9px;margin-top:10px;padding:9px 12px;border-radius:12px;background:rgba(147,197,253,.08);border:1px solid rgba(147,197,253,.22);color:#dbeafe;font-size:15px}
+.ed-date i{color:#93c5fd}.ed-date small{color:var(--muted);font-size:13px}
+.ed-date.none{background:none;border-style:dashed;border-color:var(--line);color:var(--muted);font-size:14px}
+.ed-date.none a{color:#93c5fd}
+.date-tag{position:absolute;left:0;top:7px;transform:translateX(-50%);white-space:nowrap;display:flex;align-items:center;gap:6px;padding:4px 10px 4px 9px;border-radius:999px;
+  background:rgba(13,18,26,.9);border:1px solid rgba(255,255,255,.16);color:#e5e7eb;font:600 12.5px/1.2 'Atkinson Hyperlegible',system-ui,sans-serif;letter-spacing:.01em;
+  box-shadow:0 3px 10px rgba(0,0,0,.35);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);pointer-events:none;animation:dtag .22s ease-out}
+.date-tag i{color:#93c5fd;font-size:11px}
+@keyframes dtag{from{opacity:0;transform:translate(-50%,-4px)}to{opacity:1;transform:translate(-50%,0)}}
 .swatches{display:flex;flex-wrap:wrap;gap:8px}
 .sw{width:40px;height:40px;border-radius:50%;border:3px solid transparent;background:var(--c);display:grid;place-items:center;color:var(--fg);font-size:15px;padding:0}
 .sw.on{border-color:#fff;box-shadow:0 0 0 2px var(--c)}
@@ -820,7 +829,20 @@ function renderMap(){
     rec.sig = sig;
   }
   for (const [id, rec] of markers) if (!seen.has(id)) { map.removeLayer(rec.m); markers.delete(id); }
+  drawDateTag(t, seen);
   drawRoute(); drawWaypoints();
+}
+let dateTag = null, dateTagSig = '';
+function drawDateTag(t, seen){
+  const p = ui.editorPinId && seen.has(ui.editorPinId) ? pinById(ui.editorPinId) : null;
+  const v = p && t.startDate ? stopDates(t).get(p.id) : null;
+  const txt = v ? v.map(tagText).join(', ') : '';
+  const sig = txt && `${p.id}|${p.lat}|${p.lng}|${txt}`;
+  if (sig === dateTagSig) return; dateTagSig = sig;
+  if (dateTag) { map.removeLayer(dateTag); dateTag = null; }
+  if (!txt) return;
+  dateTag = L.marker([p.lat, p.lng], {interactive: false, keyboard: false, zIndexOffset: 2000,
+    icon: L.divIcon({className: '', iconSize: [0, 0], iconAnchor: [0, 0], html: `<div class="date-tag"><i class="fa-regular fa-calendar"></i>${esc(txt)}</div>`})}).addTo(map);
 }
 let lastRouteSig = null;
 function legSegs(t){ const out = []; let s = 0; for (let i = 0; i < t.route.length - 1; i++) { out.push(s); if (t.route[i + 1].overnight && i + 1 < t.route.length - 1) s++; } return out; }
@@ -1519,6 +1541,31 @@ function lodgingTotals(t){
   const out = []; if (any) out.push(`${money(paid)} paid · ${money(due)} due on arrival`); if (reward) out.push(`${reward} reward night${reward === 1 ? '' : 's'}`); if (points) out.push(`${points} paid with points`);
   return out.join(' · ');
 }
+/* the dates each stop lands on, once a trip start date is set: pinId -> [{from, to, nights}] */
+function stopDates(t){
+  const out = new Map(); if (!t.startDate || t.route.length < 2) return out;
+  for (const d of computeDays(t, routeStats(t))) {
+    if (d.kind !== 'drive' || !d.date) continue;
+    d.idx.forEach((i, k) => {
+      if (k === 0 && d.seg > 0) return;   // where you woke up: already dated by the segment before
+      const st = t.route[i]; const sleeps = k === d.idx.length - 1 && i < t.route.length - 1 && st.overnight;
+      const v = {from: d.date, to: null, nights: 0};
+      if (sleeps) { v.nights = st.nights || 1; v.to = new Date(d.date); v.to.setDate(v.to.getDate() + v.nights); }
+      if (!out.has(st.pinId)) out.set(st.pinId, []); out.get(st.pinId).push(v);
+    });
+  }
+  return out;
+}
+const fmtDay = (d, o = {weekday: 'short', month: 'short', day: 'numeric'}) => d.toLocaleDateString(undefined, o);
+function visitText(v, long){
+  if (!v.to) return fmtDay(v.from, long ? {weekday: 'long', month: 'long', day: 'numeric'} : undefined);
+  return `${fmtDay(v.from)} – ${fmtDay(v.to)}${long ? ` (${v.nights} night${v.nights === 1 ? '' : 's'})` : ` · ${v.nights} night${v.nights === 1 ? '' : 's'}`}`;
+}
+function tagText(v){   // short, for the map: "Jul 8" or "Jul 8 – 10"
+  const md = d => fmtDay(d, {month: 'short', day: 'numeric'});
+  if (!v.to) return md(v.from);
+  return v.to.getMonth() === v.from.getMonth() ? `${md(v.from)} – ${v.to.getDate()}` : `${md(v.from)} – ${md(v.to)}`;
+}
 function stopTitle(t, i){ const p = pinById(t.route[i].pinId); return p ? p.name : '?'; }
 function stopTown(t, i){ const p = pinById(t.route[i].pinId); if (!p) return '?'; return pinPlace(p) || p.name; }
 
@@ -1739,7 +1786,7 @@ function daysView(){
   const st = routeStats(t); const days = computeDays(t, st);
   let html = totalsHtml(st, n, ' days').replace('<span class="seg-count"></span>', `${days.length} segment${days.length === 1 ? '' : 's'} · `);
   const lodging = lodgingTotals(t); if (lodging) html += `<p class="hint"><i class="fa-solid fa-bed" style="color:#c4b5fd"></i> Lodging: ${esc(lodging)}</p>`;
-  html += `<label class="label">Trip start date (optional)</label><input class="input" type="date" id="startDate" value="${esc(t.startDate)}">`;
+  html += `<label class="label">Trip start date (optional)</label><input class="input" type="date" id="startDate" value="${esc(t.startDate)}"><p class="hint" style="font-size:13px;margin-top:6px">${t.startDate ? 'Each segment, pin and stay now shows its date, and so does the itinerary. Clear the date any time.' : 'Leave this blank until your dates are set. Once you add one, every segment, pin and stay shows its date.'}</p>`;
   {
     const nights = t.route.filter((s, i) => s.overnight && i > 0 && i < n - 1).length;
     const stays = t.route.filter((s, i) => s.overnight && i > 0 && i < n - 1 && pinById(s.pinId)?.stay).length;
@@ -1817,6 +1864,12 @@ function openEditor(id, fly = true){
   if (fly) flyToPin(p); else if (!map.getBounds().pad(-0.1).contains([p.lat, p.lng])) map.panTo([p.lat, p.lng]);
   else setTimeout(() => popPin(id), 30);
 }
+function edDateHtml(t, p){
+  if (!t.route.some(s => s.pinId === p.id) || t.route.length < 2) return '';
+  const v = stopDates(t).get(p.id);
+  if (!v) return `<div class="ed-date none"><i class="fa-regular fa-calendar"></i><span>Know your travel dates? <a href="#" data-act="go" data-step="days">Add a trip start date</a> in Step 3 to see when you’ll be here.</span></div>`;
+  return `<div class="ed-date"><i class="fa-regular fa-calendar"></i><span>${v.map(x => esc(visitText(x))).join('<br>')}</span></div>`;
+}
 function closeEditor(){
   ui.editorPinId = null; ui.stayPick = false; coalesce = null; $('#editor').hidden = true; $('#editor').innerHTML = '';
   renderPanel(); renderMap();
@@ -1835,6 +1888,7 @@ function renderEditor(force){
     <label class="label" for="edAddress">Address</label>
     <input class="input" id="edAddress" value="${esc(p.address)}" placeholder="${needsAddr(p) ? 'No address yet. Type one here' : 'Street address (optional)'}" autocomplete="off">
     <div class="place-line" id="edPlace">${edPlaceHtml(p)}</div>
+    ${edDateHtml(t, p)}
     <a class="btn ghost" id="edGmaps" href="${esc(gmapsUrl(p))}" target="_blank" rel="noopener" style="width:100%;margin-top:10px;text-decoration:none"><i class="fa-solid fa-arrow-up-right-from-square"></i>Open in Google Maps</a>
     ${staySectionHtml(p)}
     <label class="label">Color</label>
@@ -2539,12 +2593,13 @@ async function itineraryBlocks(t, st, days){
   const lodging = lodgingTotals(t); if (lodging) P([R('Lodging: ', {b: 1, c: '6D28D9'}), R(lodging, {c: '6D28D9'})], {after: 15});
   if (st.errors) P(R(`Note: ${st.errors} leg${st.errors === 1 ? '' : 's'} couldn’t be found and ${st.errors === 1 ? 'is' : 'are'} not included in the totals.`, {i: 1, c: 'B00020'}));
   const shown = new Set();
-  const addStay = async (p, stop) => {
+  const addStay = async (p, stop, date) => {
     const s = p.stay; const sh = stayShows(s); shown.add(p.id);
     const nights = stop && stop.overnight ? ` · ${stop.nights} night${stop.nights === 1 ? '' : 's'}` : '';
     const line = runs => P(runs, {indent: 1, bar: 1});
     P([R('Where we’re staying: ', {b: 1, c: '6D28D9'}), R(p.name, {b: 1}), R(`  (${stayLabel(s)}${nights})`, {c: '666666'})], {indent: 1, bar: 1, before: 7});
     const rows = [];
+    if (date) { const v = {from: date, to: null, nights: 0}; if (stop && stop.overnight) { v.nights = stop.nights || 1; v.to = new Date(date); v.to.setDate(v.to.getDate() + v.nights); } rows.push(['Dates', v.to ? `${fmtDay(v.from)} to ${fmtDay(v.to)}` : fmtDay(v.from)]); }
     if (sh.site) rows.push(['Site number', s.site]);
     if (sh.phone) rows.push(['Phone', s.phone]);
     if (sh.times) rows.push(['Check-in', s.checkin], ['Check-out', s.checkout]);
@@ -2588,7 +2643,7 @@ async function itineraryBlocks(t, st, days){
         if (p.notes) p.notes.split('\n').filter(x => x.trim()).forEach(line => P(R(line, {c: '333333'}), {indent: 1}));
         p.links.forEach(l => P(R(l.url, {link: l.url}), {indent: 1}));
       }
-      if (p.stay && !shown.has(p.id) && (endOfDay || k > 0)) await addStay(p, stop);
+      if (p.stay && !shown.has(p.id) && (endOfDay || k > 0)) await addStay(p, stop, d.date);
       if (k < d.idx.length - 1) { const lg = st.legs[i]; const x = lg && lg.info; const next = stopTitle(t, d.idx[k + 1]); const nv = lg && lg.vias ? lg.vias.length : 0; const V = (ROUTE_TYPES[lg && lg.mode] || ROUTE_TYPES.drive).verb;
         if (t.routes.length > 1 && firstOfRoute(t, i + 1) && lg && lg.mode !== 'gap') begins(i + 1);
         if (lg && lg.mode === 'gap') { P(R(`→ Make your own way to ${next} (about ${milesWord(x.d)} away; not part of a route)`, {i: 1, c: '64748B'}), {indent: 1, before: 2}); continue; }
@@ -2749,7 +2804,8 @@ function planText(){
       if (t.routes.length > 1 && (i === 0 || (k > 0 && firstOfRoute(t, i) && st.legs[i - 1] && st.legs[i - 1].mode === 'gap'))) begins(i);
       const p = pinById(t.route[i].pinId); L.push(`  • ${p.name}${p.address ? ' — ' + p.address : pinLabel(p) ? ' (' + pinLabel(p) + ')' : ''}`);
       if (!(k === 0 && d.seg > 0)) { if (p.notes) L.push('      ' + p.notes.replace(/\n+/g, ' / ')); p.links.forEach(l => L.push('      ' + l.url)); }
-      if (p.stay && !shown.has(p.id) && k > 0) { shown.add(p.id); const s = p.stay; const sh = stayShows(s); L.push(`      STAYING: ${stayLabel(s)}` + [sh.site && s.site && 'site ' + s.site, sh.phone && s.phone, sh.times && s.checkin && 'check-in ' + s.checkin, sh.times && s.checkout && 'check-out ' + s.checkout, sh.conf && s.conf && 'conf. #' + s.conf, sh.money && parseMoney(s.paid) !== null && money(s.paid) + ' paid', sh.money && parseMoney(s.due) !== null && money(s.due) + ' due on arrival', sh.perks && s.reward && 'reward night', sh.perks && s.points && 'paid with points', sh.amen && stayAmenList(s).length && 'has ' + stayAmenList(s).join(', ')].filter(Boolean).map(x => ' · ' + x).join('')); if (s.notes) L.push(`      ${stayNotesLabel(s)}: ` + s.notes.replace(/\n+/g, ' / ')); }
+      if (p.stay && !shown.has(p.id) && k > 0) { shown.add(p.id); const s = p.stay; const sh = stayShows(s); const st0 = t.route[i]; const dts = d.date ? (st0.overnight && i < t.route.length - 1 ? (() => { const to = new Date(d.date); to.setDate(to.getDate() + (st0.nights || 1)); return `${fmtDay(d.date)} to ${fmtDay(to)}`; })() : fmtDay(d.date)) : '';
+        L.push(`      STAYING: ${stayLabel(s)}` + [dts, sh.site && s.site && 'site ' + s.site, sh.phone && s.phone, sh.times && s.checkin && 'check-in ' + s.checkin, sh.times && s.checkout && 'check-out ' + s.checkout, sh.conf && s.conf && 'conf. #' + s.conf, sh.money && parseMoney(s.paid) !== null && money(s.paid) + ' paid', sh.money && parseMoney(s.due) !== null && money(s.due) + ' due on arrival', sh.perks && s.reward && 'reward night', sh.perks && s.points && 'paid with points', sh.amen && stayAmenList(s).length && 'has ' + stayAmenList(s).join(', ')].filter(Boolean).map(x => ' · ' + x).join('')); if (s.notes) L.push(`      ${stayNotesLabel(s)}: ` + s.notes.replace(/\n+/g, ' / ')); }
       if (k < d.idx.length - 1) { const lg = st.legs[i]; const x = lg?.info; if (t.routes.length > 1 && firstOfRoute(t, i + 1) && lg && lg.mode !== 'gap') begins(i + 1); if (lg && lg.mode === 'gap') L.push('      → make your own way to the next stop'); else if (x && x.status === 'ok') L.push(`      → ${lg.mode !== 'drive' ? ROUTE_TYPES[lg.mode].verb.toLowerCase() + ' ' : ''}${miles(x.d)}, ${hrs(x.t)}`); }
     });
     L.push('');
