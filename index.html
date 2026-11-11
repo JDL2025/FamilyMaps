@@ -73,6 +73,13 @@ main{display:grid;grid-template-columns:400px minmax(0,1fr);min-height:0}
 .btn.ghost:hover{background:var(--panel2)}
 .btn.sm{min-height:40px;padding:8px 12px;font-size:15px;border-radius:10px}
 .btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.rb-guide{display:flex;gap:14px;align-items:flex-start;padding:18px 18px 16px;border-radius:16px;background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(34,197,94,.04));border:1px solid rgba(34,197,94,.35);margin-bottom:6px}
+.rb-guide>i{font-size:26px;color:#4ade80;margin-top:3px}
+.rb-guide h3{margin:0 0 6px;font-size:21px;color:var(--text)}
+.rb-guide p{margin:0;font-size:17px;line-height:1.4;color:var(--text)}
+.rb-guide small{display:block;margin-top:8px;font-size:14px;color:var(--muted)}
+.tools-label{margin:22px 0 8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px}
+.tools-label::after{content:'';flex:1;height:1px;background:var(--line)}
 .btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .card{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px}
 .hint{color:var(--muted);font-size:15px;margin:10px 0}
@@ -1586,7 +1593,7 @@ function render(){ renderTop(); renderMap(); renderPanel(); }
 function renderTop(){
   const t = trip(); $('#tripName').textContent = t.name;
   document.body.classList.toggle('pins-step', ui.step === 'pins' && !ui.mode);
-  $('#searchInput').placeholder = ui.step === 'pins' ? (innerWidth <= 820 ? `Search, or ${TAP.toLowerCase()} the map to add pins` : `Search, or ${TAP.toLowerCase()} anywhere on the map to add pins`) : 'Search for a place or address';
+  $('#searchInput').placeholder = ui.step === 'pins' ? (innerWidth <= 820 ? `Search or ${TAP.toLowerCase()} the map to add pins` : `Search or ${TAP.toLowerCase()} on the map to add pins`) : 'Search for a place or address';
   document.querySelectorAll('.step').forEach(b => b.classList.toggle('active', b.dataset.step === ui.step));
   const h = H(); $('#undoBtn').disabled = !h.undo.length; $('#redoBtn').disabled = !h.redo.length;
   $('#undoBtn').title = h.undo.length ? `Undo: ${h.undo[h.undo.length - 1].label}` : 'Nothing to undo';
@@ -1721,14 +1728,18 @@ function routeView(){
   if (ui.mode === 'routepick' && ui.rp) return routePickHtml();
   let html = '';
   if (n) html += totalsHtml(st, n);
-  html += `<p class="hint">${n ? `Drag your pins (<i class="fa-solid fa-grip-lines"></i>) to create your route.${t.routes.length > 1 ? ` New stops go into the highlighted route; ${TAP.toLowerCase()} a route’s name to switch.` : ''}` : `<b style="color:var(--text)">Build your route.</b> ${TAP} your pins in the order you want to visit them. Or, choose an option from below.`}</p>`;
-  html += `<div class="btn-grid">
+  if (n) html += `<p class="hint">Drag your pins (<i class="fa-solid fa-grip-lines"></i>) to create your route.${t.routes.length > 1 ? ` New stops go into the highlighted route; ${TAP.toLowerCase()} a route’s name to switch.` : ''}</p>`;
+  else html += `<div class="rb-guide"><i class="fa-solid fa-hand-pointer"></i><div><h3>Build your route</h3><p>${TAP} your pins on the map in the order you want to visit them.</p><small>Or choose one of the options below.</small></div></div>`;
+  const toolsHtml = () => { let html = '';
+    if (!n) return `<div class="tools-label">Other ways to start</div><button class="btn ghost" style="width:100%" data-act="add-all" ${t.pins.length >= 2 ? '' : 'disabled'}><i class="fa-solid fa-circle-plus"></i>Create route from all pins</button>`;
+    html += `<div class="tools-label">${n ? 'More route tools' : 'Other ways to start'}</div><div class="btn-grid">
     <button class="btn sm ghost" data-act="add-all" ${t.pins.length >= 2 ? '' : 'disabled'}><i class="fa-solid fa-circle-plus"></i>Create route from all pins</button>
     <button class="btn sm ghost" data-act="suggest" ${n >= 4 ? '' : 'disabled'} title="Reorders the stops between the first and last to make the drive shorter"><i class="fa-solid fa-wand-magic-sparkles"></i>Suggest order</button>
     <button class="btn sm ghost" data-act="reverse" ${n >= 2 ? '' : 'disabled'}><i class="fa-solid fa-arrow-right-arrow-left"></i>Reverse</button>
     <button class="btn sm ghost" data-act="clear-route" ${n ? '' : 'disabled'}><i class="fa-solid fa-trash-can"></i>Clear route</button></div>
     <button class="btn ${ui.mode === 'waypoint' ? 'yellow' : 'ghost'}" style="width:100%;margin-top:8px" data-act="wp-mode" ${n >= 2 ? '' : 'disabled'} title="Make the route pass through a spot, like a scenic road"><span class="wpb">W</span>${ui.mode === 'waypoint' ? `Done adding waypoints` : 'Add waypoint (scenic route)'}</button>`;
-  if (!n && t.routes.length === 1) return html + `<div class="empty"><i class="fa-solid fa-hand-pointer big"></i>No stops yet.</div>`;
+    return html; };
+  if (!n && t.routes.length === 1) return html + toolsHtml();
   html += `<ol class="stops" id="stopList">`;
   const many = t.routes.length > 1;
   const head = r => { const cnt = t.route.filter(x => x.r === r.id).length; const act = r.id === t.activeRouteId;
@@ -1750,6 +1761,7 @@ function routeView(){
   html += headsUpTo(t.routes.length - 1);
   html += `</ol>`;
   html += `<button class="btn ghost" style="width:100%;margin-top:6px" data-act="add-route"><i class="fa-solid fa-plus"></i>Add another route (driving, hiking or group tour)</button>`;
+  html += toolsHtml();
   if (n >= 2) html += `<button class="btn big amber" style="margin-top:16px" data-act="go" data-step="days">Next: Step 3, plan the segments<i class="fa-solid fa-arrow-right"></i></button>`;
   html += `<p class="hint" style="font-size:13px">Drive times are estimates without traffic, stops or ferry wait times.${t.routes.some(r => r.type === 'hike') ? ' Hiking times assume about 3 mph on level paths, without breaks or hills.' : ''}</p>`;
   return html;
