@@ -1400,6 +1400,7 @@ function announceLoose(vs){
 function addWaypointAt(ll){
   const t = trip(); if (t.route.length < 2) { toast('Make a route with at least 2 stops first.'); return; }
   const v = {id: uid(), lat: +ll.lat.toFixed(6), lng: +ll.lng.toFixed(6), label: ''};
+  if (ui.mode === 'waypoint') setMode(null);
   change('Add waypoint', t => { t.looseWps.push(v); });
   toast(`Waypoint added at the bottom of your stop list. Drag it (≡) up between the two stops it should connect.`, {action: 'Undo', onAction: undo, ms: 8000});
   labelWaypoint(v.id);
@@ -1821,7 +1822,7 @@ function routeView(){
   const toolsHtml = () => { let html = '';
     if (!n) return `<div class="tools-label">Other ways to start</div><button class="btn ghost" style="width:100%" data-act="add-all" ${t.pins.length >= 2 ? '' : 'disabled'}><i class="fa-solid fa-circle-plus"></i>Create route from all pins</button>`;
     html += `<div class="tools-label">${n ? 'More route tools' : 'Other ways to start'}</div>`;
-    html += `<button class="btn ${ui.mode === 'waypoint' ? 'yellow' : 'ghost wp-glow'}" style="width:100%;margin-bottom:8px" data-act="wp-mode" ${n >= 2 ? '' : 'disabled'} title="Make the route pass through a spot, like a scenic road"><span class="wpb">W</span>${ui.mode === 'waypoint' ? `Done adding waypoints` : 'Add waypoint'}</button>`;
+    html += `<button class="btn ${ui.mode === 'waypoint' ? 'yellow' : 'ghost wp-glow'}" style="width:100%;margin-bottom:8px" data-act="wp-mode" ${n >= 2 ? '' : 'disabled'} title="Make the route pass through a spot, like a scenic road"><span class="wpb">W</span>${ui.mode === 'waypoint' ? `${TAP} the map to place it · Cancel` : 'Add waypoint'}</button>`;
     html += `<div class="btn-grid">
     <button class="btn sm ghost" data-act="add-all" ${t.pins.length >= 2 ? '' : 'disabled'}><i class="fa-solid fa-circle-plus"></i>Create route from all pins</button>
     <button class="btn sm ghost" data-act="suggest" ${n >= 4 ? '' : 'disabled'} title="Reorders the stops between the first and last to make the drive shorter"><i class="fa-solid fa-wand-magic-sparkles"></i>Suggest order</button>
@@ -2303,7 +2304,7 @@ function setMode(m){
 function renderBanner(){
   const b = $('#banner'); const t = trip();
   if (ui.mode === 'routepick' && ui.rp) { b.className = 'banner route'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-hand-pointer"></i><span>${ui.rp.stage === 'start' ? `${TAP} the pin where your trip starts` : `${TAP} the pin where your trip ends, or choose an option in the panel`}</span><button class="btn sm" data-act="rp-cancel">Cancel</button>`; }
-  else if (ui.mode === 'waypoint') { b.className = 'banner waypoint'; b.hidden = false; b.innerHTML = `<span class="wpb">W</span><span>${TAP} the map where the route should go</span><button class="btn sm" data-act="wp-mode"><i class="fa-solid fa-check"></i>Done</button>`; }
+  else if (ui.mode === 'waypoint') { b.className = 'banner waypoint'; b.hidden = false; b.innerHTML = `<span class="wpb">W</span><span>${TAP} the map where the route should go</span><button class="btn sm" data-act="wp-mode">Cancel</button>`; }
   else if (ui.mode === 'measure') { b.className = 'banner measure'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-ruler"></i><span>${TAP} two or more spots to measure</span><button class="btn sm" id="bannerMeasureDone">Done</button>`; $('#bannerMeasureDone').onclick = () => setMode(null); }
   else if (ui.step === 'route' && t.pins.length && t.route.length < 2 && !ui.editorPinId) { b.className = 'banner route'; b.hidden = false; b.innerHTML = `<i class="fa-solid fa-route"></i><span>${TAP} pins in the order you’ll visit them</span>`; }
   else b.hidden = true;
