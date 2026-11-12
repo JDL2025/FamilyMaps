@@ -711,9 +711,10 @@ function toast(msg, o = {}){
   const box = $('#toasts'); const el = document.createElement('div'); el.className = 'toast' + (o.err ? ' err' : '');
   el.innerHTML = `<span>${esc(msg)}</span>`;
   if (o.action) { const b = document.createElement('button'); b.textContent = o.action; b.onclick = () => { el.remove(); o.onAction(); }; el.appendChild(b); }
+  (o.actions || []).forEach(a => { const b = document.createElement('button'); b.textContent = a.label; b.onclick = () => { el.remove(); a.run(); }; el.appendChild(b); });
   [...box.children].forEach(c => { if (c.firstChild && c.firstChild.textContent === msg) c.remove(); });
   box.appendChild(el); while (box.children.length > 3) box.firstChild.remove();
-  setTimeout(() => el.remove(), o.ms || (o.action ? 7000 : 3500));
+  setTimeout(() => el.remove(), o.ms || (o.action || o.actions ? 7000 : 3500));
 }
 function undoToast(msg){ toast(msg, {action: 'Undo', onAction: undo}); }
 
@@ -1368,9 +1369,31 @@ function normWp(v){ return {id: v.id || uid(), lat: +v.lat, lng: +v.lng, label: 
 /* a waypoint sits on the drive between two stops (stop.via, while stop.viaTo is still the next stop).
    waypoints not between two stops wait at the bottom of the stop list (t.looseWps) until they're dragged into place */
 function tidyWaypoints(t){
-  t.looseWps ||= []; let moved = 0;
-  t.route.forEach((s, i) => { if (s.via && s.via.length && !legVias(t, i).length) { t.looseWps.push(...s.via); moved += s.via.length; s.via = []; delete s.viaTo; } });
-  return moved;
+  t.looseWps ||= []; const loosened = [];
+  const pt = i => t.pins.find(p => p.id === t.route[i].pinId);
+  t.route.forEach((s, i) => {
+    if (!s.via || !s.via.length || legVias(t, i).length) return;
+    const vs = s.via; s.via = []; const to = s.viaTo; delete s.viaTo;
+    // route reversed: the same road, driven the other way
+    const prev = t.route[i - 1];
+    if (prev && prev.pinId === to && !(prev.via && prev.via.length)) { prev.via = vs.slice().reverse(); prev.viaTo = s.pinId; return; }
+    // stops added in between: each waypoint joins the new drive that passes closest to it
+    const j = t.route.findIndex((x, k) => k > i + 1 && x.pinId === to);
+    if (j > 0 && pt(i) && pt(j)) {
+      const groups = new Map();
+      for (const v of vs) { let best = null; for (let k = i; k < j; k++) { const a = pt(k), b = pt(k + 1); if (!a || !b) continue; const d = nearestOnLine([[a.lat, a.lng], [b.lat, b.lng]], v); if (!best || d.d < best.d) best = {k, d: d.d, pos: d.pos}; } if (!best) continue; if (!groups.has(best.k)) groups.set(best.k, []); groups.get(best.k).push({v, pos: best.pos}); }
+      for (const [k, g] of groups) { const st = t.route[k]; st.via = [...(st.viaTo === t.route[k + 1].pinId ? st.via || [] : []), ...g.sort((x, y) => x.pos - y.pos).map(x => x.v)]; st.viaTo = t.route[k + 1].pinId; }
+      return;
+    }
+    t.looseWps.push(...vs); loosened.push(...vs);
+  });
+  return loosened;
+}
+function announceLoose(vs){
+  if (!vs.length) return;
+  const one = vs.length === 1; const where = one && vs[0].label ? ` near ${vs[0].label}` : '';
+  toast(`${one ? `The waypoint${where} isn’t` : `${vs.length} waypoints aren’t`} between two stops anymore. ${one ? 'It’s' : 'They’re'} waiting at the bottom of your stop list.`, {ms: 10000,
+    actions: [{label: one ? 'Delete it' : 'Delete them', run: () => { const ids = new Set(vs.map(v => v.id)); change('Remove waypoint', t => { t.looseWps = t.looseWps.filter(v => !ids.has(v.id)); }); }}, {label: 'Undo', run: undo}]});
 }
 function addWaypointAt(ll){
   const t = trip(); if (t.route.length < 2) { toast('Make a route with at least 2 stops first.'); return; }
@@ -1390,6 +1413,10 @@ async function labelWaypoint(id){   // "US 12, Lolo" so the card says where it i
   } catch (e) {}
 }
 function removeWaypoint(sid, id){ change('Remove waypoint', t => { t.route.forEach(s => { if (s.via) s.via = s.via.filter(v => v.id !== id); }); t.looseWps = t.looseWps.filter(v => v.id !== id); }); map.closePopup(); undoToast('Waypoint removed'); }
+function looseWpNote(t){
+  const n = (t.looseWps || []).length; if (!n) return '';
+  return `<div class="addr-nag" style="cursor:default"><span class="wpb">W</span><span><b>${n} waypoint${n === 1 ? ' isn’t' : 's aren’t'} on your route.</b> The drive${n === 1 ? ' it was' : 's they were'} meant for use${n === 1 ? 's' : ''} the default road.</span><button class="btn sm" style="margin-left:auto;white-space:nowrap" data-act="go" data-step="route">Place ${n === 1 ? 'it' : 'them'}</button></div>`;
+}
 function wpCardHtml(v, k, total, loose){
   return `<li class="wpcard${loose ? ' loose' : ''}" data-wp="${v.id}"><button class="drag" aria-label="Drag to place this waypoint"><i class="fa-solid fa-grip-lines"></i></button><span class="wpb">W</span>
     <span class="txt" data-act="focus-wp" data-id="${v.id}" title="Show on the map"><b>Waypoint${total > 1 ? ' ' + (k + 1) : ''}</b><small>${loose ? 'Not on the route yet. Drag it up between the two stops it should connect.' : esc(v.label || 'The route passes through here')}</small></span>
@@ -1397,7 +1424,7 @@ function wpCardHtml(v, k, total, loose){
 }
 const wpLayer = L.layerGroup().addTo(map);
 function drawWaypoints(){
-  wpLayer.clearLayers(); const t = trip(); if (tidyWaypoints(t)) scheduleSave();
+  wpLayer.clearLayers(); const t = trip(); const loosened = tidyWaypoints(t); if (loosened.length) { scheduleSave(); setTimeout(() => announceLoose(loosened), 0); }
   routeLegs(t).forEach(l => l.vias.forEach((v, k) => {
     const m = L.marker([v.lat, v.lng], {icon: L.divIcon({className: '', html: '<div class="wp-mk">W</div>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14], tooltipAnchor: [0, -15]}), draggable: true, zIndexOffset: 900});
     m.bindTooltip(`Waypoint ${l.vias.length > 1 ? k + 1 + ' ' : ''}between ${esc(l.a.name)} and ${esc(l.b.name)} · drag to move`, {className: 'pin-tip', direction: 'top'});
@@ -1885,6 +1912,7 @@ function daysView(){
   const st = routeStats(t); const days = computeDays(t, st);
   let html = totalsHtml(st, n, ' days').replace('<span class="seg-count"></span>', `${days.length} segment${days.length === 1 ? '' : 's'} · `);
   const lodging = lodgingTotals(t); if (lodging) html += `<p class="hint"><i class="fa-solid fa-bed" style="color:#c4b5fd"></i> Lodging: ${esc(lodging)}</p>`;
+  html += looseWpNote(t);
   html += `<label class="label">Trip start date (optional)</label><input class="input" type="date" id="startDate" value="${esc(t.startDate)}"><p class="hint" style="font-size:13px;margin-top:6px">${t.startDate ? 'Each segment, pin and stay now shows its date, and so does the itinerary. Clear the date any time.' : 'Leave this blank until your dates are set. Once you add one, every segment, pin and stay shows its date.'}</p>`;
   {
     const nights = t.route.filter((s, i) => s.overnight && i > 0 && i < n - 1).length;
@@ -2924,11 +2952,11 @@ async function makeDoc(btn){
   const {t, st, days} = planData();
   if (t.route.length < 2) { toast('Make a route first (Step 2).'); return; }
   if (st.pending) { toast('Still loading some driving times. Try again in a few seconds.'); return; }
-  const fmt = await modal({title: 'Export trip itinerary', html: `<p>Which kind of file would you like? Both have a map for each segment and all your stay details.</p>
+  const fmt = await modal({title: 'Export trip itinerary', html: `${looseWpNote(t).replace(' data-act="go" data-step="route"', ' data-act="go" data-step="route" data-close-modal')}<p>Which kind of file would you like? Both have a map for each segment and all your stay details.</p>
     <div class="fmt-choices">
       <button class="fmt" data-v="docx"><i class="fa-solid fa-file-word" style="color:#60a5fa"></i><span><b>Word document</b><small>Best if you want to change it. Opens in Word, Pages and Google Docs.</small></span></button>
       <button class="fmt" data-v="pdf"><i class="fa-solid fa-file-pdf" style="color:#f87171"></i><span><b>PDF</b><small>Best for printing or sending. Opens on any phone or computer and looks the same everywhere.</small></span></button>
-    </div>`, onOpen: (back, close) => back.querySelectorAll('.fmt').forEach(b => b.onclick = () => close(b.dataset.v)), buttons: [{label: 'Cancel', value: null}]});
+    </div>`, onOpen: (back, close) => { back.querySelectorAll('.fmt').forEach(b => b.onclick = () => close(b.dataset.v)); const g = back.querySelector('[data-close-modal]'); if (g) g.addEventListener('click', () => close(null)); }, buttons: [{label: 'Cancel', value: null}]});
   if (!fmt) return;
   const old = btn && btn.innerHTML; if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i>Making the ${fmt === 'pdf' ? 'PDF' : 'Word document'}…`; }
   if (!btn) toast(`Making the ${fmt === 'pdf' ? 'PDF' : 'Word document'}…`, {ms: 3000});
