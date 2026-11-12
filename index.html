@@ -167,8 +167,8 @@ body.pin-dragging .pin-row{cursor:grabbing}
 .mode-list span{color:var(--muted);font-size:15px}.mode-list i{width:22px;color:var(--text)}
 .stop{background:var(--panel2);border:1px solid var(--line);border-radius:12px;margin-bottom:0}
 .stop-main{display:flex;align-items:center;gap:8px;padding:8px 6px 8px 4px;min-height:56px}
-.stop .drag{width:38px;height:44px;display:grid;place-items:center;color:var(--faint);cursor:grab;touch-action:none;flex:none;border:none;background:none;font-size:17px}
-.stop .drag:active{cursor:grabbing}
+.stop .drag,.wpcard .drag{width:38px;height:44px;display:grid;place-items:center;color:var(--faint);cursor:grab;touch-action:none;flex:none;border:none;background:none;font-size:17px}
+.stop .drag:active,.wpcard .drag:active{cursor:grabbing}
 .stop .snum{width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:14px;background:var(--route);color:#06210f}
 .stop .txt{flex:1;min-width:0;cursor:pointer}
 .stop .txt b{display:block;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -343,6 +343,13 @@ body.addr-busy .toasts{bottom:100px}
 .banner.waypoint .btn{background:rgba(0,0,0,.14)}
 .btn.yellow{background:#facc15;color:#2a2000}
 .pill.wp{background:rgba(250,204,21,.16);color:#fde047}
+#stopList .wpcard{list-style:none;display:flex;align-items:center;gap:8px;margin:0 0 8px 22px;padding:6px 6px 6px 4px;border-radius:12px;border:2px solid #facc15;background:rgba(250,204,21,.07)}
+#stopList .wpcard .txt{flex:1;min-width:0;cursor:pointer}
+#stopList .wpcard .txt b{display:block;font-size:15px;color:#fde047}
+#stopList .wpcard .txt small{display:block;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#stopList .wpcard.loose{margin-left:0;border-style:dashed;background:rgba(250,204,21,.04)}
+#stopList .wpcard.loose .txt small{white-space:normal;color:#fde68a}
+.wp-mk.loose{background:#fef3c7;border-style:dashed;opacity:.9}
 .pill.wp button{border:none;background:#ef4444;color:#fff;width:20px;height:20px;border-radius:50%;padding:0;margin-left:4px;font-size:11px;display:inline-grid;place-items:center}
 .pill.wp button:hover{background:#dc2626}
 .adding .leaflet-marker-icon{cursor:default}
@@ -625,7 +632,7 @@ function normalizeTrip(t){
   t.pins.forEach(p => { p.id ||= uid(); p.name = String(p.name ?? 'Pin'); p.notes = String(p.notes || ''); p.links = Array.isArray(p.links) ? p.links.filter(l => l && l.url) : []; if (!/^#[0-9a-f]{6}$/i.test(p.color||'')) p.color = DEFAULT_COLOR; if (!ICON_SET.has(p.icon)) p.icon = 'location-dot'; if (!lids.has(p.layerId)) p.layerId = t.layers[0].id; p.address = String(p.address || ''); p.poi = !!p.poi; if (p.stay && p.stay.address && !p.address) p.address = String(p.stay.address); p.stay = normStay(p.stay); });
   const pids = new Set(t.pins.map(p => p.id));
   t.route = (Array.isArray(t.route) ? t.route : []).filter(s => s && pids.has(s.pinId));
-  t.route.forEach(s => { s.sid ||= uid(); s.via = Array.isArray(s.via) ? s.via.filter(v => v && isFinite(v.lat) && isFinite(v.lng)).map(v => ({id: v.id || uid(), lat: +v.lat, lng: +v.lng})) : []; if (typeof s.viaTo !== 'string') delete s.viaTo; s.overnight = !!s.overnight; s.nights = clamp(Math.round(Number(s.nights) || 1), 1, 30); if (typeof s.sugFrac !== 'number') delete s.sugFrac; });
+  t.route.forEach(s => { s.sid ||= uid(); s.via = Array.isArray(s.via) ? s.via.filter(v => v && isFinite(v.lat) && isFinite(v.lng)).map(normWp) : []; if (typeof s.viaTo !== 'string') delete s.viaTo; s.overnight = !!s.overnight; s.nights = clamp(Math.round(Number(s.nights) || 1), 1, 30); if (typeof s.sugFrac !== 'number') delete s.sugFrac; });
   t.startDate = typeof t.startDate === 'string' ? t.startDate : '';
   delete t.maxDayHours;
   if (!Array.isArray(t.routes) || !t.routes.length) t.routes = [{id: uid(), type: 'drive', joined: true, name: ''}];
@@ -636,6 +643,8 @@ function normalizeTrip(t){
   const rord = new Map(t.routes.map((r, i) => [r.id, i]));   // keep each route's stops together, in route order
   t.route = t.route.map((st, i) => [st, i]).sort((a, b) => rord.get(a[0].r) - rord.get(b[0].r) || a[1] - b[1]).map(x => x[0]);
   if (!rids.has(t.activeRouteId)) t.activeRouteId = t.routes[t.routes.length - 1].id;
+  t.looseWps = Array.isArray(t.looseWps) ? t.looseWps.filter(v => v && isFinite(v.lat) && isFinite(v.lng)).map(normWp) : [];
+  tidyWaypoints(t);
   return t;
 }
 function load(){
@@ -1355,19 +1364,40 @@ function nearestOnLine(coords, ll){
   return best;
 }
 function legLine(l){ const c = []; if (l.info && l.info.status === 'ok' && l.info.segs.length) l.info.segs.forEach(s => c.push(...s.c)); if (c.length < 2) { c.length = 0; c.push([l.a.lat, l.a.lng], ...l.vias.map(v => [v.lat, v.lng]), [l.b.lat, l.b.lng]); } return c; }
-function addWaypointAt(ll){
-  const t = trip(); const legs = routeLegs(t).filter(l => l.a && l.b);
-  if (!legs.length) { toast('Make a route with at least 2 stops first.'); return; }
-  let best = null; for (const l of legs) { const n = nearestOnLine(legLine(l), ll); if (!best || n.d < best.n.d) best = {l, n}; }
-  const l = best.l; const line = legLine(l);
-  const id = uid(); const all = l.vias.map(v => ({v, pos: nearestOnLine(line, v).pos})).concat([{v: {id, lat: +ll.lat.toFixed(6), lng: +ll.lng.toFixed(6)}, pos: best.n.pos}]).sort((a, b) => a.pos - b.pos).map(x => x.v);
-  change('Add waypoint', t => { const s = t.route[l.i]; s.via = all; s.viaTo = t.route[l.i + 1].pinId; });
-  toast(`Waypoint added. The drive from ${l.a.name} to ${l.b.name} now passes through it.`, {action: 'Undo', onAction: undo});
+function normWp(v){ return {id: v.id || uid(), lat: +v.lat, lng: +v.lng, label: typeof v.label === 'string' ? v.label : ''}; }
+/* a waypoint sits on the drive between two stops (stop.via, while stop.viaTo is still the next stop).
+   waypoints not between two stops wait at the bottom of the stop list (t.looseWps) until they're dragged into place */
+function tidyWaypoints(t){
+  t.looseWps ||= []; let moved = 0;
+  t.route.forEach((s, i) => { if (s.via && s.via.length && !legVias(t, i).length) { t.looseWps.push(...s.via); moved += s.via.length; s.via = []; delete s.viaTo; } });
+  return moved;
 }
-function removeWaypoint(sid, id){ change('Remove waypoint', t => { const s = t.route.find(x => x.sid === sid); if (s) s.via = s.via.filter(v => v.id !== id); }); map.closePopup(); undoToast('Waypoint removed'); }
+function addWaypointAt(ll){
+  const t = trip(); if (t.route.length < 2) { toast('Make a route with at least 2 stops first.'); return; }
+  const v = {id: uid(), lat: +ll.lat.toFixed(6), lng: +ll.lng.toFixed(6), label: ''};
+  change('Add waypoint', t => { t.looseWps.push(v); });
+  toast(`Waypoint added at the bottom of your stop list. Drag it (≡) up between the two stops it should connect.`, {action: 'Undo', onAction: undo, ms: 8000});
+  labelWaypoint(v.id);
+  requestAnimationFrame(() => { const el = document.querySelector(`#stopList .wpcard[data-wp="${v.id}"]`); if (el) el.scrollIntoView({block: 'nearest', behavior: 'smooth'}); });
+}
+function findWp(t, id){ for (const s of t.route) { const v = (s.via || []).find(x => x.id === id); if (v) return v; } return (t.looseWps || []).find(x => x.id === id) || null; }
+async function labelWaypoint(id){   // "US 12, Lolo" so the card says where it is
+  const v0 = findWp(trip(), id); if (!v0) return;
+  try {
+    const r = await fetchJSON(`${NOMINATIM}/reverse?format=jsonv2&lat=${v0.lat}&lon=${v0.lng}&zoom=16&addressdetails=1&accept-language=en`, 10000);
+    const a = (r.json && r.json.address) || {}; const label = [a.road, a.village || a.town || a.city || a.hamlet || a.county].filter(Boolean).join(', ');
+    const v = findWp(trip(), id); if (v && label) { v.label = label; scheduleSave(); if (ui.step === 'route') renderPanelSoft(); }
+  } catch (e) {}
+}
+function removeWaypoint(sid, id){ change('Remove waypoint', t => { t.route.forEach(s => { if (s.via) s.via = s.via.filter(v => v.id !== id); }); t.looseWps = t.looseWps.filter(v => v.id !== id); }); map.closePopup(); undoToast('Waypoint removed'); }
+function wpCardHtml(v, k, total, loose){
+  return `<li class="wpcard${loose ? ' loose' : ''}" data-wp="${v.id}"><button class="drag" aria-label="Drag to place this waypoint"><i class="fa-solid fa-grip-lines"></i></button><span class="wpb">W</span>
+    <span class="txt" data-act="focus-wp" data-id="${v.id}" title="Show on the map"><b>Waypoint${total > 1 ? ' ' + (k + 1) : ''}</b><small>${loose ? 'Not on the route yet. Drag it up between the two stops it should connect.' : esc(v.label || 'The route passes through here')}</small></span>
+    <button class="mini-btn" data-act="del-wp" data-id="${v.id}" title="Remove this waypoint"><i class="fa-solid fa-xmark"></i></button></li>`;
+}
 const wpLayer = L.layerGroup().addTo(map);
 function drawWaypoints(){
-  wpLayer.clearLayers(); const t = trip();
+  wpLayer.clearLayers(); const t = trip(); if (tidyWaypoints(t)) scheduleSave();
   routeLegs(t).forEach(l => l.vias.forEach((v, k) => {
     const m = L.marker([v.lat, v.lng], {icon: L.divIcon({className: '', html: '<div class="wp-mk">W</div>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14], tooltipAnchor: [0, -15]}), draggable: true, zIndexOffset: 900});
     m.bindTooltip(`Waypoint ${l.vias.length > 1 ? k + 1 + ' ' : ''}between ${esc(l.a.name)} and ${esc(l.b.name)} · drag to move`, {className: 'pin-tip', direction: 'top'});
@@ -1375,9 +1405,19 @@ function drawWaypoints(){
     div.innerHTML = `<div class="pp-title"><span class="wpb" style="margin-right:6px">W</span>Waypoint</div><div class="pp-sub">The drive from ${esc(l.a.name)} to ${esc(l.b.name)} is forced to pass through here. Drag the W to move it.</div><button class="btn red" data-pp="del"><i class="fa-solid fa-trash-can"></i>Remove waypoint</button>`;
     div.addEventListener('click', ev => { if (ev.target.closest('[data-pp=del]')) removeWaypoint(l.sid, v.id); });
     m.bindPopup(div, {minWidth: 230, maxWidth: 280});
-    m.on('dragend', () => { const p = m.getLatLng(); change('Move waypoint', t => { const s = t.route.find(x => x.sid === l.sid); const w = s && s.via.find(x => x.id === v.id); if (w) { w.lat = +p.lat.toFixed(6); w.lng = +p.lng.toFixed(6); } }); });
+    m.on('dragend', () => { const p = m.getLatLng(); change('Move waypoint', t => { const s = t.route.find(x => x.sid === l.sid); const w = s && s.via.find(x => x.id === v.id); if (w) { w.lat = +p.lat.toFixed(6); w.lng = +p.lng.toFixed(6); w.label = ''; } }); labelWaypoint(v.id); });
     m.addTo(wpLayer);
   }));
+  (t.looseWps || []).forEach(v => {
+    const m = L.marker([v.lat, v.lng], {icon: L.divIcon({className: '', html: '<div class="wp-mk loose">W</div>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14], tooltipAnchor: [0, -15]}), draggable: true, zIndexOffset: 900});
+    m.bindTooltip('Waypoint, not on the route yet. In the stop list, drag it between two stops.', {className: 'pin-tip', direction: 'top'});
+    const div = document.createElement('div');
+    div.innerHTML = `<div class="pp-title"><span class="wpb" style="margin-right:6px">W</span>Waypoint (not placed yet)</div><div class="pp-sub">In Step 2’s stop list, drag this waypoint’s card up between the two stops whose drive should pass through here.</div><button class="btn red" data-pp="del"><i class="fa-solid fa-trash-can"></i>Remove waypoint</button>`;
+    div.addEventListener('click', ev => { if (ev.target.closest('[data-pp=del]')) removeWaypoint(null, v.id); });
+    m.bindPopup(div, {minWidth: 230, maxWidth: 280});
+    m.on('dragend', () => { const p = m.getLatLng(); change('Move waypoint', t => { const w = t.looseWps.find(x => x.id === v.id); if (w) { w.lat = +p.lat.toFixed(6); w.lng = +p.lng.toFixed(6); w.label = ''; } }); labelWaypoint(v.id); });
+    m.addTo(wpLayer);
+  });
 }
 
 /* ---------- routes (drive / hike / group tour) ---------- */
@@ -1759,6 +1799,7 @@ function routeView(){
     <button class="btn ${ui.mode === 'waypoint' ? 'yellow' : 'ghost'}" style="width:100%;margin-top:8px" data-act="wp-mode" ${n >= 2 ? '' : 'disabled'} title="Make the route pass through a spot, like a scenic road"><span class="wpb">W</span>${ui.mode === 'waypoint' ? `Done adding waypoints` : 'Add waypoint (scenic route)'}</button>`;
     return html; };
   if (!n && t.routes.length === 1) return html + toolsHtml();
+  tidyWaypoints(t);
   html += `<ol class="stops" id="stopList">`;
   const many = t.routes.length > 1;
   const head = r => { const cnt = t.route.filter(x => x.r === r.id).length; const act = r.id === t.activeRouteId;
@@ -1769,6 +1810,7 @@ function routeView(){
   t.route.forEach((s, i) => {
     const p = pinById(s.pinId);
     html += headsUpTo(t.routes.findIndex(r => r.id === s.r));
+    if (i > 0) { const vs = legVias(t, i - 1); vs.forEach((v, k) => { html += wpCardHtml(v, k, vs.length, false); }); }
     html += `<li class="stop" data-sid="${s.sid}">${i > 0 ? legHtml(st.legs[i - 1], t) : ''}<div class="stop-main">
       <button class="drag" aria-label="Drag to reorder"><i class="fa-solid fa-grip-lines"></i></button>
       <span class="snum">${i + 1}</span>
@@ -1778,6 +1820,7 @@ function routeView(){
     </div></li>`;
   });
   html += headsUpTo(t.routes.length - 1);
+  t.looseWps.forEach((v, k) => { html += wpCardHtml(v, k, t.looseWps.length, true); });
   html += `</ol>`;
   html += `<button class="btn ghost" style="width:100%;margin-top:6px" data-act="add-route"><i class="fa-solid fa-plus"></i>Add another route (driving, hiking or group tour)</button>`;
   html += toolsHtml();
@@ -1789,14 +1832,29 @@ let sortable = null;
 function setupSortable(){
   if (sortable) { sortable.destroy(); sortable = null; }
   const el = $('#stopList'); if (!el || !window.Sortable) return;
-  sortable = Sortable.create(el, {handle: '.drag', draggable: '.stop', animation: 150, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen', fallbackTolerance: 3, forceFallback: true, fallbackOnBody: true, scroll: true, bubbleScroll: true,
+  sortable = Sortable.create(el, {handle: '.drag', draggable: '.stop, .wpcard', animation: 150, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen', fallbackTolerance: 3, forceFallback: true, fallbackOnBody: true, scroll: true, bubbleScroll: true,
     onStart: () => { ui.sorting = true; },
     onEnd: () => {
       ui.sorting = false; releaseSortClick();
-      const t0 = trip(); let rid = t0.routes[0].id; const order = [];
-      for (const li of el.children) { if (li.dataset.rid) rid = li.dataset.rid; else if (li.dataset.sid) order.push([li.dataset.sid, rid]); }
-      const sig = a => a.map(([sid, r]) => sid + ':' + r).join();
-      if (sig(order) !== sig(t0.route.map(s => [s.sid, s.r]))) { change('Reorder stops', t => { const m = new Map(t.route.map(s => [s.sid, s])); t.route = order.map(([sid, r]) => { const x = m.get(sid); if (x) x.r = r; return x; }).filter(Boolean); }); }
+      // a waypoint card belongs to the drive into the next stop below it; one with no stop above or below waits at the bottom
+      const t0 = trip(); let rid = t0.routes[0].id; const order = []; let pending = []; const place = new Map(); const loose = [];
+      for (const li of el.children) {
+        if (li.dataset.rid) rid = li.dataset.rid;
+        else if (li.dataset.wp) pending.push(li.dataset.wp);
+        else if (li.dataset.sid) { if (pending.length) { if (order.length) place.set(order[order.length - 1][0], {ids: pending, to: li.dataset.sid}); else loose.push(...pending); pending = []; } order.push([li.dataset.sid, rid]); }
+      }
+      loose.push(...pending);
+      const sig = (a, p, lz) => a.map(([sid, r]) => sid + ':' + r).join() + '|' + [...p].map(([k, v]) => k + '>' + v.to + ':' + v.ids.join('+')).join() + '|' + lz.join();
+      const cur = new Map(); t0.route.forEach((s, i) => { const vs = legVias(t0, i); if (vs.length) cur.set(s.sid, {ids: vs.map(v => v.id), to: t0.route[i + 1].sid}); });
+      if (sig(order, place, loose) !== sig(t0.route.map(s => [s.sid, s.r]), cur, t0.looseWps.map(v => v.id))) {
+        change(place.size !== cur.size || loose.length !== t0.looseWps.length ? 'Place waypoint' : 'Reorder stops', t => {
+          const all = new Map(); t.route.forEach(s => (s.via || []).forEach(v => all.set(v.id, v))); t.looseWps.forEach(v => all.set(v.id, v));
+          const m = new Map(t.route.map(s => [s.sid, s]));
+          t.route = order.map(([sid, r]) => { const x = m.get(sid); if (x) { x.r = r; x.via = []; delete x.viaTo; } return x; }).filter(Boolean);
+          for (const [sid, p] of place) { const s = m.get(sid), nx = m.get(p.to); if (s && nx) { s.via = p.ids.map(id => all.get(id)).filter(Boolean); s.viaTo = nx.pinId; } }
+          t.looseWps = loose.map(id => all.get(id)).filter(Boolean);
+        });
+      }
       else if (ui.panelDirty) { ui.panelDirty = false; renderPanel(); }
     }});
 }
@@ -2041,6 +2099,7 @@ document.addEventListener('click', async e => {
   switch (act) {
     case 'wp-mode': setMode(ui.mode === 'waypoint' ? null : 'waypoint'); break;
     case 'del-wp': removeWaypoint(el.dataset.sid, id); break;
+    case 'focus-wp': { const v = findWp(trip(), id); if (v) map.flyTo([v.lat, v.lng], Math.max(map.getZoom(), 11), {duration: .6}); break; }
     case 'clear-vias': change('Remove waypoints', t => { const s = t.route.find(x => x.sid === el.dataset.sid); if (s) s.via = []; }); undoToast('Waypoints removed'); break;
     case 'import': $('#fileInput').click(); break;
     case 'new-layer': { const name = await askText('New layer', 'Layer name (for example “Food” or “Maybe”)', ''); if (name) { const lid = uid(); change('New layer', t => { t.layers.push({id: lid, name, visible: true}); t.activeLayerId = lid; }); toast(`New pins will go into “${name}”.`); } break; }
@@ -2925,7 +2984,7 @@ function showHelp(){
   modal({title: 'How to use Larson Family Maps', wide: true, html: `${stepsHtml()}
     <h3 style="margin:18px 0 6px">Bring in a trip from Google My Maps</h3>
     <ol><li>On a computer, go to <b>google.com/maps/d</b> and open the map.</li><li>Click the <b>three dots ⋮</b> next to the map’s name.</li><li>Click <b>Export to KML/KMZ</b>.</li><li>Choose <b>Entire map</b>, then click <b>Download</b>.</li><li>Here, click the folder button <b><i class="fa-solid fa-folder-open"></i></b> (top right), then <b>Import a Google My Map</b>, and pick the file. You can also drag the file onto this page.</li></ol>
-    <h3 style="margin:18px 0 6px">Take the scenic road with waypoints</h3><p>In Step 2, press <b>Add waypoint</b>, then click a road you want to drive on. The route is forced through that spot, which shows as a small yellow <b>W</b>. Drag a W to move it, or click it to remove it. You can also search for a place and press <b>Add as a waypoint</b>.</p>
+    <h3 style="margin:18px 0 6px">Take the scenic road with waypoints</h3><p>In Step 2, press <b>Add waypoint</b>, then click a road you want to drive on. A yellow waypoint card appears at the bottom of your stop list: drag it up between the two stops whose drive should pass through that spot. The stop after it shows “via 1 waypoint” so you’ll know why that drive looks the way it does. Drag the yellow <b>W</b> on the map to move it, or press × on its card to remove it. You can also search for a place and press <b>Add as a waypoint</b>.</p>
     <h3 style="margin:18px 0 6px">Measure a distance</h3><p>Click <b>Measure</b> on the map, then click two or more spots. You get the straight-line distance and the driving distance and time. Nothing is saved.</p>
     <h3 style="margin:18px 0 6px">Where your trips are saved</h3><p>Trips save in <b>this browser on this device</b>. Use the folder button <b><i class="fa-solid fa-folder-open"></i> → Download a backup</b> now and then, and keep the file somewhere safe. Clearing your browser’s website data would erase trips that aren’t backed up.</p>`,
     buttons: [{label: 'Got it', kind: 'blue'}]});
