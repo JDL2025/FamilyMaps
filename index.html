@@ -518,7 +518,8 @@ body.addr-busy .toasts{bottom:100px}
 
 const APP_VERSION = 1;
 const STORE_KEY = 'lfm.data.v1';
-const LEGS_KEY  = 'lfm.legs.v2';
+const LEGS_KEY  = 'lfm.legs.v3';   // v3: drives avoid unpaved roads when they can
+try { localStorage.removeItem('lfm.legs.v2'); } catch (e) {}
 const PREFS_KEY = 'lfm.prefs.v1';
 const VALHALLA = 'https://valhalla1.openstreetmap.de/route';
 const OSRM = ['https://router.project-osrm.org/route/v1/driving/', 'https://routing.openstreetmap.de/routed-car/route/v1/driving/'];
@@ -876,6 +877,7 @@ function drawRoute(){
         if (seg.c.length < 2) continue;
         if (l.mode === 'gap') { line(seg.c, {color: '#94a3b8', weight: 2.5, dashArray: '12 10', opacity: .85}); continue; }
         if (seg.m === 'ferry') { line(seg.c, {color: '#05080c', weight: 8, opacity: .45}); line(seg.c, {color: col, weight: 4, dashArray: '10 9', lineCap: 'butt', opacity: .97}); continue; }
+        if (seg.m === 'rough' && l.mode !== 'hike') { line(seg.c, {color: '#05080c', weight: 9, opacity: .55}); line(seg.c, {color: col, weight: 5, opacity: .97}); line(seg.c, {color: '#1f1300', weight: 2.5, dashArray: '5 7', lineCap: 'butt', opacity: .95}); if (l.mode !== 'tour') continue; }
         if (l.mode === 'hike') { line(seg.c, {color: '#05080c', weight: 9, dashArray: '0.1 12', opacity: .6}); line(seg.c, {color: col, weight: 6, dashArray: '0.1 12', opacity: 1}); continue; }
         if (l.mode === 'tour') { line(seg.c, {color: '#05080c', weight: 11, opacity: .55}); line(seg.c, {color: col, weight: 8, opacity: .97}); line(seg.c, {color: '#0b1220', weight: 2.5, opacity: .9}); continue; }
         line(seg.c, {color: '#05080c', weight: 9, opacity: .55}); line(seg.c, {color: col, weight: 5, opacity: .97});
@@ -1286,12 +1288,18 @@ function decode6(str){
   }
   return out;
 }
-async function valhallaRoute(pts, foot){
+async function valhallaRoute(pts, foot, anyRoad){
   const body = {locations: pts.map(p => ({lat: +p.lat.toFixed(6), lon: +p.lng.toFixed(6), type: p.via ? 'via' : 'break'})), costing: foot ? 'pedestrian' : 'auto', units: 'kilometers', directions_type: 'maneuvers'};
+  // cars stay on paved roads when there's any paved way there (never a 4x4 shortcut by default)
+  // (a drive with waypoints follows the road you picked; the warning still shows if it's unpaved)
+  if (!foot && !anyRoad && !pts.some(p => p.via)) body.costing_options = {auto: {exclude_unpaved: true, use_tracks: 0}};
+  const single = pts.filter(p => !p.via).length === 2;
   try {
     const r = await fetchJSON(VALHALLA + '?json=' + encodeURIComponent(JSON.stringify(body)), 25000);
     const j = r.json;
-    if (j && j.trip && j.trip.legs) return {ok: true, legs: j.trip.legs.map(parseValhallaLeg)};
+    if (j && j.trip && j.trip.legs) return {ok: true, legs: j.trip.legs.map(lg => Object.assign(parseValhallaLeg(lg), anyRoad ? {gravelOnly: true} : {}))};
+    const stuck = j && [442, 443, 171, 170].includes(j.error_code);
+    if (stuck && body.costing_options && single) { await sleep(300); return valhallaRoute(pts, foot, true); }   // only gravel reaches this place
     if (j && (j.error_code === 442 || j.error_code === 443)) return {ok: false, code: 'NoRoute'};
     if (j && (j.error_code === 171 || j.error_code === 170)) return {ok: false, code: 'NoSegment'};
     if (j && j.error_code === 154) return {ok: false, code: 'TooFar'};
@@ -1301,14 +1309,18 @@ async function valhallaRoute(pts, foot){
 function parseValhallaLeg(leg){
   const shape = decode6(leg.shape || ''); const segs = []; let ferry = null; let cur = 0;
   const push = (m, a, b) => { if (b <= a) return; const c = shape.slice(a, b + 1); const last = segs[segs.length - 1]; if (last && last.m === m) last.c.push(...c.slice(1)); else segs.push({m, c}); };
+  let rough = 0;
   for (const mv of leg.maneuvers || []) {
-    if (mv.type !== 28 && mv.travel_type !== 'ferry') continue;
-    ferry ||= {d: 0, t: 0}; ferry.d += (mv.length || 0) * 1000; ferry.t += mv.time || 0;
-    push('drive', cur, mv.begin_shape_index); push('ferry', mv.begin_shape_index, mv.end_shape_index); cur = mv.end_shape_index;
+    const isFerry = mv.type === 28 || mv.travel_type === 'ferry';
+    if (isFerry) { ferry ||= {d: 0, t: 0}; ferry.d += (mv.length || 0) * 1000; ferry.t += mv.time || 0; }
+    else if (mv.rough) rough += (mv.length || 0) * 1000;   // unpaved or rough pavement
+    if (mv.begin_shape_index == null || mv.end_shape_index == null) continue;
+    push('drive', cur, mv.begin_shape_index);
+    push(isFerry ? 'ferry' : mv.rough ? 'rough' : 'drive', mv.begin_shape_index, mv.end_shape_index); cur = Math.max(cur, mv.end_shape_index);
   }
   push('drive', cur, shape.length - 1);
   segs.forEach(s => s.c = simplify(s.c, 0.00035));
-  return {status: 'ok', d: (leg.summary.length || 0) * 1000, t: leg.summary.time || 0, segs, ferry, used: Date.now()};
+  return {status: 'ok', d: (leg.summary.length || 0) * 1000, t: leg.summary.time || 0, segs, ferry, rough, used: Date.now()};
 }
 async function osrmRoute(pts, foot){
   const coords = pts.map(p => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`).join(';');
@@ -1317,7 +1329,7 @@ async function osrmRoute(pts, foot){
     try {
       const r = await fetchJSON(server + coords + '?overview=false&steps=true&geometries=geojson' + wps, 25000);
       const j = r.json;
-      if (j && j.code === 'Ok' && j.routes && j.routes[0]) return {ok: true, legs: j.routes[0].legs.map(parseLeg)};
+      if (j && j.code === 'Ok' && j.routes && j.routes[0]) return {ok: true, legs: j.routes[0].legs.map(lg => Object.assign(parseLeg(lg), foot ? {} : {unchecked: true}))};
       if (j && (j.code === 'NoRoute' || j.code === 'NoSegment')) return {ok: false, code: j.code};
     } catch (e) { /* try next server */ }
     await sleep(400);
@@ -1370,6 +1382,13 @@ function drawWaypoints(){
 
 /* ---------- routes (drive / hike / group tour) ---------- */
 const LONG_DRIVE_S = 12 * 3600, LONG_HIKE_M = 12 * 1609.344;   // group tours never warn: someone else drives
+const ROUGH_WARN = 3 * 1609.344;   // warn when a drive has more than 3 miles of unpaved or rough road
+function roughPill(l){
+  const x = l && l.info; if (!x || x.status !== 'ok' || l.mode !== 'drive') return '';
+  if (x.unchecked) return `<span class="pill" title="The backup directions service can’t tell paved roads from gravel. Check this drive yourself.">Road types not checked</span>`;
+  if ((x.rough || 0) < ROUGH_WARN) return '';
+  return `<span class="pill warn" title="${x.gravelOnly ? 'There’s no paved way to this place, so part of the drive is on gravel, dirt or rough road.' : 'Part of this drive is on gravel, dirt or rough road.'} Check road conditions before you go, or add a waypoint to use a different road."><i class="fa-solid fa-triangle-exclamation"></i>${miles(x.rough)} unpaved / rough road</span>`;
+}
 function longPills(d){
   const by = d.by || {}; let h = '';
   if (by.drive && by.drive.s > LONG_DRIVE_S) h += `<span class="pill warn" title="More than 12 hours of driving in this segment"><i class="fa-solid fa-triangle-exclamation"></i>Long drive</span>`;
@@ -1709,7 +1728,7 @@ function legHtml(l, t){
   if (x.status === 'error') return `<div class="leg in"><span class="pill err"><i class="fa-solid fa-triangle-exclamation"></i>${esc(x.err)}</span>${x.kind === 'network' ? '<button class="retry" data-act="retry">Try again</button>' : ''}</div>`;
   if (x.d === 0) return `<div class="leg in" data-act="zoom-leg" data-i="${l.i}"><span class="arrow"><i class="fa-solid fa-arrow-down"></i></span>Same place as the stop before</div>`;
   const wp = l.vias && l.vias.length ? `<span class="pill wp"><span class="wpb" style="width:16px;height:16px;font-size:9px;border-width:1px">W</span>via ${l.vias.length} waypoint${l.vias.length === 1 ? '' : 's'}<button data-act="clear-vias" data-sid="${l.sid}" title="Remove these waypoints" aria-label="Remove these waypoints"><i class="fa-solid fa-xmark"></i></button></span>` : '';
-  return `<div class="leg in" data-act="zoom-leg" data-i="${l.i}" title="Show this ${T.noun} on the map"><span class="arrow"><i class="fa-solid fa-${T.icon}"></i></span><span><b>${miles(x.d)}</b> · ${hrs(x.t)} ${l.mode === 'drive' ? '' : `<b style="font-weight:400;color:var(--muted)">${T.short}</b> `}${from}</span>${x.ferry ? `<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry ${miles(x.ferry.d)} · ${hrs(x.ferry.t)}</span>` : ''}${wp}</div>`;
+  return `<div class="leg in" data-act="zoom-leg" data-i="${l.i}" title="Show this ${T.noun} on the map"><span class="arrow"><i class="fa-solid fa-${T.icon}"></i></span><span><b>${miles(x.d)}</b> · ${hrs(x.t)} ${l.mode === 'drive' ? '' : `<b style="font-weight:400;color:var(--muted)">${T.short}</b> `}${from}</span>${x.ferry ? `<span class="pill ferry"><i class="fa-solid fa-ferry"></i>Ferry ${miles(x.ferry.d)} · ${hrs(x.ferry.t)}</span>` : ''}${roughPill(l)}${wp}</div>`;
 }
 function totalsHtml(st, n, extra = ''){
   let status = '';
@@ -2633,6 +2652,7 @@ async function dayMapImage(t, st, d){
     if (sg.mode === 'hike') { g.setLineDash([0.1, 14]); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 12; g.stroke(); path(sg); g.strokeStyle = col; g.lineWidth = 8; g.stroke(); continue; }
     if (sg.mode === 'tour') { g.strokeStyle = col; g.lineWidth = 10; g.stroke(); path(sg); g.strokeStyle = '#ffffff'; g.lineWidth = 3; g.stroke(); continue; }
     g.strokeStyle = col; g.lineWidth = 6; g.stroke();
+    if (sg.m === 'rough') { path(sg); g.setLineDash([8, 10]); g.lineCap = 'butt'; g.strokeStyle = '#ffffff'; g.lineWidth = 2.5; g.stroke(); g.lineCap = 'round'; }
   }
   g.lineCap = 'round';
   g.setLineDash([]);
@@ -2718,7 +2738,7 @@ async function itineraryBlocks(t, st, days){
       if (k < d.idx.length - 1) { const lg = st.legs[i]; const x = lg && lg.info; const next = stopTitle(t, d.idx[k + 1]); const nv = lg && lg.vias ? lg.vias.length : 0; const V = (ROUTE_TYPES[lg && lg.mode] || ROUTE_TYPES.drive).verb;
         if (t.routes.length > 1 && firstOfRoute(t, i + 1) && lg && lg.mode !== 'gap') begins(i + 1);
         if (lg && lg.mode === 'gap') { P(R(`→ Make your own way to ${next} (about ${milesWord(x.d)} away; not part of a route)`, {i: 1, c: '64748B'}), {indent: 1, before: 2}); continue; }
-        P(R(x && x.status === 'ok' ? `→ ${V} ${milesWord(x.d)}, about ${hrsWord(x.t)}, to ${next}${x.ferry ? ' (includes a ferry)' : ''}${nv ? ` (via ${nv} waypoint${nv === 1 ? '' : 's'})` : ''}` : `→ ${V} to ${next} (time unknown)`, {i: 1, c: colHex}), {indent: 1, before: 2}); }
+        P(R(x && x.status === 'ok' ? `→ ${V} ${milesWord(x.d)}, about ${hrsWord(x.t)}, to ${next}${x.ferry ? ' (includes a ferry)' : ''}${lg.mode === 'drive' && (x.rough || 0) >= ROUGH_WARN ? ` (includes ${milesWord(x.rough)} of unpaved or rough road; check conditions)` : ''}${nv ? ` (via ${nv} waypoint${nv === 1 ? '' : 's'})` : ''}` : `→ ${V} to ${next} (time unknown)`, {i: 1, c: colHex}), {indent: 1, before: 2}); }
     }
   }
   const inRoute = new Set(t.route.map(s => s.pinId)); const others = t.pins.filter(p => !inRoute.has(p.id));
@@ -2877,7 +2897,7 @@ function planText(){
       if (!(k === 0 && d.seg > 0)) { if (p.notes) L.push('      ' + p.notes.replace(/\n+/g, ' / ')); p.links.forEach(l => L.push('      ' + l.url)); }
       if (p.stay && !shown.has(p.id) && k > 0) { shown.add(p.id); const s = p.stay; const sh = stayShows(s); const st0 = t.route[i]; const dts = d.date ? (st0.overnight && i < t.route.length - 1 ? (() => { const to = new Date(d.date); to.setDate(to.getDate() + (st0.nights || 1)); return `${fmtDay(d.date)} to ${fmtDay(to)}`; })() : fmtDay(d.date)) : '';
         L.push(`      STAYING: ${stayLabel(s)}` + [dts, sh.site && s.site && 'site ' + s.site, sh.phone && s.phone, sh.times && s.checkin && 'check-in ' + s.checkin, sh.times && s.checkout && 'check-out ' + s.checkout, sh.conf && s.conf && 'conf. #' + s.conf, sh.money && parseMoney(s.paid) !== null && money(s.paid) + ' paid', sh.money && parseMoney(s.due) !== null && money(s.due) + ' due on arrival', sh.perks && s.reward && 'reward night', sh.perks && s.points && 'paid with points', sh.amen && stayAmenList(s).length && 'has ' + stayAmenList(s).join(', ')].filter(Boolean).map(x => ' · ' + x).join('')); if (s.notes) L.push(`      ${stayNotesLabel(s)}: ` + s.notes.replace(/\n+/g, ' / ')); }
-      if (k < d.idx.length - 1) { const lg = st.legs[i]; const x = lg?.info; if (t.routes.length > 1 && firstOfRoute(t, i + 1) && lg && lg.mode !== 'gap') begins(i + 1); if (lg && lg.mode === 'gap') L.push('      → make your own way to the next stop'); else if (x && x.status === 'ok') L.push(`      → ${lg.mode !== 'drive' ? ROUTE_TYPES[lg.mode].verb.toLowerCase() + ' ' : ''}${miles(x.d)}, ${hrs(x.t)}`); }
+      if (k < d.idx.length - 1) { const lg = st.legs[i]; const x = lg?.info; if (t.routes.length > 1 && firstOfRoute(t, i + 1) && lg && lg.mode !== 'gap') begins(i + 1); if (lg && lg.mode === 'gap') L.push('      → make your own way to the next stop'); else if (x && x.status === 'ok') L.push(`      → ${lg.mode !== 'drive' ? ROUTE_TYPES[lg.mode].verb.toLowerCase() + ' ' : ''}${miles(x.d)}, ${hrs(x.t)}${lg.mode === 'drive' && (x.rough || 0) >= ROUGH_WARN ? ` (${miles(x.rough)} unpaved/rough road)` : ''}`); }
     });
     L.push('');
   }
