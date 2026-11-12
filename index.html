@@ -1816,7 +1816,7 @@ function routeView(){
   if (ui.mode === 'routepick' && ui.rp) return routePickHtml();
   let html = '';
   if (n) html += totalsHtml(st, n);
-  if (n) html += `<p class="hint">Drag your pins (<i class="fa-solid fa-grip-lines"></i>) to create your route.${t.routes.length > 1 ? ` New stops go into the highlighted route; ${TAP.toLowerCase()} a route’s name to switch.` : ''}</p>`;
+  if (n) html += `<p class="hint">Drag your pin cards (<i class="fa-solid fa-grip-lines"></i>) to change your route.${t.routes.length > 1 ? ` New stops go into the highlighted route; ${TAP.toLowerCase()} a route’s name to switch.` : ''}</p>`;
   else html += `<div class="rb-guide"><i class="fa-solid fa-hand-pointer"></i><div><h3>Build your route</h3><p>${TAP} your pins on the map in the order you want to visit them.</p><small>Or choose one of the options below.</small></div></div>`;
   const toolsHtml = () => { let html = '';
     if (!n) return `<div class="tools-label">Other ways to start</div><button class="btn ghost" style="width:100%" data-act="add-all" ${t.pins.length >= 2 ? '' : 'disabled'}><i class="fa-solid fa-circle-plus"></i>Create route from all pins</button>`;
